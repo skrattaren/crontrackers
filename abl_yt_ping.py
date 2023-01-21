@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import re
 import sys
 
@@ -32,27 +33,36 @@ def notify(url):
                   timeout=3)
 
 
-def main(url):
-    r = requests.get(url, timeout=13)
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('id_or_url')
+    parser.add_argument('-n', '--no-notification', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    args = parser.parse_args()
+    if args.id_or_url.isdigit():
+        game_id = args.id_or_url
+    elif arg_match := re.match(URL_RE, args.id_or_url):
+        game_id = arg_match.groups()[0]
+    else:
+        err(f"Unable to parse argument: {args.id_or_url}")
+    args.game_url = GAME_URL.format(game_id)
+    return args
+
+
+def main():
+    args = parse_args()
+    r = requests.get(args.game_url, timeout=13)
     doc = html.fromstring(r.text)
-    # print(r.text)
     video_elem = doc.find('body//div[@class="video-records"]/div/iframe')
     if video_elem is None:
         return
     yt_url = video_elem.attrib['src']
     yt_url = yt_url.replace('embed/', 'watch?v=')
-    notify(yt_url)
+    if args.no_notification:
+        print(f"YouTube link found: {yt_url}")
+    else:
+        notify(yt_url)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        err("Only one argument is accepted")
-    arg = sys.argv[1]
-    if arg.isdigit():
-        game_id = arg
-    elif arg_match := re.match(URL_RE, arg):
-        game_id = arg_match.groups()[0]
-    else:
-        err("Unable to parse argument")
-    game_url = GAME_URL.format(game_id)
-    main(game_url)
+    main()
