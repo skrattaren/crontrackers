@@ -87,10 +87,11 @@ def main():
     r = requests.get(args.game_url, timeout=13)
     doc = html.fromstring(r.text)
     video_elem = doc.find('body//div[@class="video-records"]/div/iframe')
+    if video_elem is None:
+        LOGGER.info("No video found on page (yet)")
+        return
     LOGGER.info("Found video <iframe>:\n%s",
                 lxml.html.tostring(video_elem).decode('utf-8'))
-    if video_elem is None:
-        return
     yt_url = video_elem.attrib['src']
     yt_url = yt_url.replace('embed/', 'watch?v=')
     LOGGER.info("YouTube link found: %s", yt_url)
