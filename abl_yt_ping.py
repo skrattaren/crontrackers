@@ -17,6 +17,11 @@ MEDIA_SUFFIX = 'media'
 GAME_URL = '%s/{}/%s' % (BASE_URL, MEDIA_SUFFIX)
 URL_RE = r'%s/([0-9]+)[/a-z]+' % BASE_URL
 NTFY_TOPIC = 'skrattaren-ntfy'
+YT_SHRTURL_TMPL = 'https://youtu.be/{}'
+# courtesy of Soufiane Sakhi: https://stackoverflow.com/a/61033353/9288580
+YT_URL_RE = re.compile(r'(?:https?:\/\/)?(?:www\.)?youtu(?:\.be\/|be.com\/\S*'
+                       r'(?:watch|embed)(?:(?:(?=\/[-a-zA-Z0-9_]{11,}(?!\S))\/)'
+                       r'|(?:\S*v=|v\/)))([-a-zA-Z0-9_]{11,})')
 
 _STATE_DIR = os.path.join(os.getenv('HOME', '.'), '.local', 'state')
 _STATE_DIR = os.getenv('XDG_STATE_HOME', _STATE_DIR)
@@ -93,7 +98,7 @@ def main():
     LOGGER.info("Found video <iframe>:\n%s",
                 lxml.html.tostring(video_elem).decode('utf-8'))
     yt_url = video_elem.attrib['src']
-    yt_url = yt_url.replace('embed/', 'watch?v=')
+    yt_url = YT_SHRTURL_TMPL.format(YT_URL_RE.match(yt_url).groups()[0])
     LOGGER.info("YouTube link found: %s", yt_url)
     if not args.no_cache:
         check_cache(args.game_id)
