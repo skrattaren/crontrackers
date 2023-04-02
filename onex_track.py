@@ -86,16 +86,23 @@ def main():
                  for tno in args.track]
     for (tno, label) in track_nos:
         LOGGER.info("Processing %s (label '%s')", tno, label)
-        parcel_id = _request(ONEX_INFO_URL, {'tcode': tno}
-                             )['data']['import']['parcelid']
+        basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']['import']
+        LOGGER.info("Tracking info: %s", basic_info)
+        parcel_id = basic_info['parcelid']
         if parcel_id == '0':
             LOGGER.info("No tracking info from Onex, skipping")
             continue
         LOGGER.info("Parcel ID: %s", parcel_id)
         trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
         LOGGER.info("Tracking info: %s", trk_info)
-        latest_entry = max(trk_info['data'],
-                           key=lambda e: datetime.datetime.fromisoformat(e['date']))
+        trk_data = trk_info['data']
+        if trk_data:
+            latest_entry = max(trk_info['data'],
+                               key=lambda e: datetime.datetime.fromisoformat(e['date']))
+        else:
+            latest_entry = {'hub': 'ONEX warehouse',
+                            'type': 'out',
+                            'date': basic_info['inmywaydate']}
         if not args.no_cache and is_cached(tno, latest_entry['date']):
             continue
         latest_entry['label'] = label
