@@ -80,35 +80,72 @@ def is_cached(tno, date):
     return False
 
 
+def get_preonex_status(data):
+    LOGGER.info("Extracting pre-Onex shipping status")
+    last = max(data['track']['checkpoints'],
+               key=lambda e: datetime.datetime.fromisoformat(e['time']))
+    LOGGER.info("Latest pre-Onex checkpoint is %s", last)
+    msg_template = "{label}: {status} ({place})"
+    return msg_template, {'place': last['location_translated'],
+                          'status': last['status_name'].lower(),
+                          'date': last['time']}
+
+
+def get_at_wh_status(data):
+    msg_template = "Посылка «{label}» доставлена на склад Onex"
+    return msg_template, {'date': data['import']['inusadate']}
+
+
+def get_parcel_status(data):
+    parcel_id = data['import']['parcelid']
+    LOGGER.info("Parcel ID: %s", parcel_id)
+    trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
+    LOGGER.info("Tracking info: %s", trk_info)
+    return trk_info['data']
+
+
+def get_shipping_status(data):
+    msg_template = "Посылка «{label}» {dir} {hub}"
+    trk_info = get_parcel_status(data)
+    last = {'hub': 'склад Onex', 'type': 'out',
+            'date': data['import']['inmywaydate']}
+    if trk_info:
+        last = max(trk_info,
+                   key=lambda e: datetime.datetime.fromisoformat(e['date']))
+    last['dir'] = DIR_DICT[last['type']]
+    return msg_template, last
+
+
+def get_in_AM_status(data):
+    trk_info = get_parcel_status(data)
+    return trk_info
+
+
+PROCESSOR_DICT = {'in my way': get_shipping_status,
+                  'in USA': get_at_wh_status,
+                  'in Armenia': get_in_AM_status}
+
+
 def main():
     args = parse_args()
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
     for (tno, label) in track_nos:
         LOGGER.info("Processing %s (label '%s')", tno, label)
-        basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']['import']
-        LOGGER.info("Tracking info: %s", basic_info)
-        parcel_id = basic_info['parcelid']
-        if parcel_id == '0':
-            LOGGER.info("No tracking info from Onex, skipping")
-            continue
-        LOGGER.info("Parcel ID: %s", parcel_id)
-        trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
-        LOGGER.info("Tracking info: %s", trk_info)
-        trk_data = trk_info['data']
-        if trk_data:
-            latest_entry = max(trk_info['data'],
-                               key=lambda e: datetime.datetime.fromisoformat(e['date']))
+        basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']
+        if not basic_info['import']:
+            msg_template, latest_entry = get_preonex_status(basic_info)
         else:
-            latest_entry = {'hub': 'ONEX warehouse',
-                            'type': 'out',
-                            'date': basic_info['inmywaydate']}
+            msg_template, latest_entry = PROCESSOR_DICT[
+                                            basic_info['import']['orderstatus']
+                                            ](basic_info)
+        LOGGER.info("Latest entry found: %s", latest_entry)
         if not args.no_cache and is_cached(tno, latest_entry['date']):
             continue
         latest_entry['label'] = label
         latest_entry['no'] = tno
-        latest_entry['dir'] = DIR_DICT[latest_entry['type']]
-        msg = "Посылка «{label}» {dir} {hub}\n({date}, № заказа {no})".format(**latest_entry)
+        msg_template += "\n({date}, № заказа {no})"
+        msg = msg_template.format(**latest_entry)
         LOGGER.info('Message prepared:\n "%s"', msg)
         if not args.no_notification:
             notify(args.ntfy_topic, latest_entry['label'], msg)
