@@ -82,7 +82,13 @@ def is_cached(tno, date):
 
 def get_preonex_status(data):
     LOGGER.info("Extracting pre-Onex shipping status")
-    last = max(data['track']['checkpoints'],
+    checkpoints = data['track']['checkpoints']
+    if not checkpoints:
+        LOGGER.info("No checkpoints reported (yet)")
+        msg_template = "{courier} пока не предоставил(а) информацию о посылке {label}"
+        return msg_template, {'courier': data['track']['courier']['name'],
+                              'date': data['track']['last_check']}
+    last = max(checkpoints,
                key=lambda e: datetime.datetime.fromisoformat(e['time']))
     LOGGER.info("Latest pre-Onex checkpoint is %s", last)
     msg_template = "{label}: {status} ({place})"
