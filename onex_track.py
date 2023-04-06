@@ -123,8 +123,9 @@ def get_shipping_status(data):
 
 
 def get_in_AM_status(data):
-    trk_info = get_parcel_status(data)
-    return trk_info
+    msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
+    return msg_template, {'status': 'in Armenia',
+                          'date': data['import']['inarmeniadate']}
 
 
 PROCESSOR_DICT = {'in my way': get_shipping_status,
