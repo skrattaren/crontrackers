@@ -30,8 +30,8 @@ DIR_DICT = {'in': "прибыла в",
 
 
 def notify(ntfy_topic, label, msg):
-    LOGGER.info('Sending message with title "%s" to ntfy topic "%s"',
-                label, msg)
+    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" and body:\n'
+                '"%s"', label, ntfy_topic, msg)
     requests.post(f'https://ntfy.sh/{ntfy_topic}',
                   headers={
                       'Title': label.encode(encoding='utf-8'),
@@ -58,6 +58,8 @@ def parse_args():
     if args.verbose:
         LOGGER.setLevel('INFO')
         LOGGER.info("Entering verbose mode")
+    if not args.ntfy_topic and not args.no_cache:
+        parser.error("pass `--ntfy-topic` or use `--no-notification`")
     return args
 
 
