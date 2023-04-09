@@ -131,6 +131,7 @@ def get_in_AM_status(data):
 
 
 PROCESSOR_DICT = {'in my way': get_shipping_status,
+                  '3': get_shipping_status,
                   'in USA': get_at_wh_status,
                   'in Armenia': get_in_AM_status}
 
