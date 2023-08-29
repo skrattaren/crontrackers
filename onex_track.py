@@ -130,9 +130,16 @@ def get_in_AM_status(data):
                           'date': data['import']['inarmeniadate']}
 
 
+def get_received_status(data):
+    msg_template = "Посылка «{label}» доставлена и получена"
+    return msg_template, {'status': 'received',
+                          'date': data['import']['receiveddate']}
+
+
 PROCESSOR_DICT = {'in my way': get_shipping_status,
                   '3': get_shipping_status,
                   'in USA': get_at_wh_status,
+                  'received': get_received_status,
                   'in Armenia': get_in_AM_status}
 
 
