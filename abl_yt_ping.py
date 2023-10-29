@@ -38,7 +38,8 @@ def notify(url):
     title = doc.find('head//meta[@name="title"]').attrib['content']
     requests.post(f'https://ntfy.sh/{NTFY_TOPIC}',
                   headers={
-                      'Title': f'"{title}" YouTube link is ready',
+                      'Title': f'"{title}" YouTube link is ready'
+                               ''.encode('utf-8'),
                       'Tag': 'basketball'
                   },
                   data=url,
