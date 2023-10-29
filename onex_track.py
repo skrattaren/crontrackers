@@ -84,7 +84,12 @@ def is_cached(tno, date):
 
 def get_preonex_status(data):
     LOGGER.info("Extracting pre-Onex shipping status")
-    checkpoints = data['track']['checkpoints']
+    track_data = data['track']
+    if not track_data:
+        msg_template = "No data collected by Onex"
+        LOGGER.info(msg_template)
+        return msg_template, {'date': ''}
+    checkpoints = track_data['checkpoints']
     if not checkpoints:
         LOGGER.info("No checkpoints reported (yet)")
         msg_template = "{courier} пока не предоставил(а) информацию о посылке {label}"
