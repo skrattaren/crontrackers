@@ -157,6 +157,11 @@ def main():
         basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']
         if not basic_info['import']:
             msg_template, latest_entry = get_preonex_status(basic_info)
+        elif basic_info['import'].get('orderstatus') is None:
+            msg_template, latest_entry = (
+                "Посылка «{label}» получена складом ONEX",
+                {'date': basic_info['import']['wo_scanneddate']}
+            )
         else:
             msg_template, latest_entry = PROCESSOR_DICT[
                                             basic_info['import']['orderstatus']
