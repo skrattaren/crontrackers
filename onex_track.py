@@ -20,7 +20,8 @@ LOGGER = logging.Logger(SCRIPT_NAME)
 LOGGER.setLevel('WARN')
 LOGGER.addHandler(logging.StreamHandler())
 
-ONEX_HEADERS = {'X-Requested-With': 'XMLHttpRequest'}
+ONEX_HEADERS = {'X-Requested-With': 'XMLHttpRequest',
+                'User-Agent': 'Opera/13.666 (Linux amd64) Presto'}
 ONEX_BASE_URL = 'https://onex.am'
 ONEX_INFO_URL = f'{ONEX_BASE_URL}/onextrack/findtrackingcodeimport'
 ONEX_TRACKING_URL = f'{ONEX_BASE_URL}/parcel/hub'
