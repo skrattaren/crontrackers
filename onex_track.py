@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+Track Onex shipping progress and notify about it using `ntf.sh`
+"""
+
 import argparse
 import datetime
 import json
@@ -31,8 +35,9 @@ DIR_DICT = {'in': "прибыла в",
 
 
 def notify(ntfy_topic, label, msg):
-    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" and body:\n'
-                '"%s"', label, ntfy_topic, msg)
+    """ Send message to `ntfy.sh` topic """
+    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" and body:'
+                '\n"%s"', label, ntfy_topic, msg)
     requests.post(f'https://ntfy.sh/{ntfy_topic}',
                   headers={
                       'Title': label.encode(encoding='utf-8'),
@@ -43,15 +48,18 @@ def notify(ntfy_topic, label, msg):
 
 
 def _request(url, form_data):
-    r = requests.post(url, form_data, headers=ONEX_HEADERS, timeout=666)
-    return r.json()
+    response = requests.post(url, form_data, headers=ONEX_HEADERS, timeout=666)
+    return response.json()
 
 
 def parse_args():
+    """ Handle CLI args """
     parser = argparse.ArgumentParser()
     parser.add_argument('-T', '--ntfy-topic', help="ntfy.sh topic to post to")
-    parser.add_argument('-t', '--track', nargs='+', metavar="TRACKING_NUMBER[:NAME]",
-                        help="order numbers to track, with optional name/labels")
+    parser.add_argument('-t', '--track', nargs='+',
+                        metavar="TRACKING_NUMBER[:NAME]",
+                        help="order number(s) to track, "
+                             "with optional name/labels")
     parser.add_argument('-n', '--no-notification', action='store_true')
     parser.add_argument('-c', '--no-cache', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -65,6 +73,7 @@ def parse_args():
 
 
 def is_cached(tno, date):
+    """ Check if event is already encountered (cached) """
     LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
     updates = {}
     if os.path.isfile(STATE_FILE):
@@ -74,7 +83,8 @@ def is_cached(tno, date):
     else:
         LOGGER.info("No state file found")
     if updates.get(tno) == date:
-        LOGGER.info("Already recorded event for '%s' at '%s', skipping", tno, date)
+        LOGGER.info("Already recorded event for '%s' at '%s', skipping",
+                    tno, date)
         return True
     updates[tno] = date
     LOGGER.info("Saving update to state file: %s", updates)
@@ -84,6 +94,7 @@ def is_cached(tno, date):
 
 
 def get_preonex_status(data):
+    """ Get status of package before delivery to Onex warehouse """
     LOGGER.info("Extracting pre-Onex shipping status")
     track_data = data['track']
     if not track_data:
@@ -93,7 +104,8 @@ def get_preonex_status(data):
     checkpoints = track_data['checkpoints']
     if not checkpoints:
         LOGGER.info("No checkpoints reported (yet)")
-        msg_template = "{courier} пока не предоставил(а) информацию о посылке {label}"
+        msg_template = ("{courier} пока не предоставил(а) информацию "
+                        "о посылке {label}")
         return msg_template, {'courier': data['track']['courier']['name'],
                               'date': data['track']['last_check']}
     last = max(checkpoints,
@@ -106,11 +118,13 @@ def get_preonex_status(data):
 
 
 def get_at_wh_status(data):
+    """ Get status of package at the warehouse """
     msg_template = "Посылка «{label}» доставлена на склад Onex"
     return msg_template, {'date': data['import']['inusadate']}
 
 
 def get_parcel_status(data):
+    """ Get "sub"-status from JSON data """
     parcel_id = data['import']['parcelid']
     LOGGER.info("Parcel ID: %s", parcel_id)
     trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
@@ -119,6 +133,7 @@ def get_parcel_status(data):
 
 
 def get_shipping_status(data):
+    """ Get progress of shipping by Onex itself """
     msg_template = "Посылка «{label}» {dir} {hub}"
     trk_info = get_parcel_status(data)
     last = {'hub': 'склад Onex', 'type': 'out',
@@ -130,13 +145,15 @@ def get_shipping_status(data):
     return msg_template, last
 
 
-def get_in_AM_status(data):
+def get_in_am_status(data):
+    """ Package is in Armenia """
     msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
     return msg_template, {'status': 'in Armenia',
                           'date': data['import']['inarmeniadate']}
 
 
 def get_received_status(data):
+    """ Package received """
     msg_template = "Посылка «{label}» доставлена и получена"
     return msg_template, {'status': 'received',
                           'date': data['import']['receiveddate']}
@@ -146,10 +163,11 @@ PROCESSOR_DICT = {'in my way': get_shipping_status,
                   '3': get_shipping_status,
                   'in USA': get_at_wh_status,
                   'received': get_received_status,
-                  'in Armenia': get_in_AM_status}
+                  'in Armenia': get_in_am_status}
 
 
 def main():
+    """ Main control flow handler """
     args = parse_args()
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
