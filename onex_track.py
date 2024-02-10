@@ -34,10 +34,10 @@ DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
 
-def notify(ntfy_topic, label, msg):
+def notify(ntfy_topic, label, msg, tno):
     """ Send message to `ntfy.sh` topic """
-    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" and body:'
-                '\n"%s"', label, ntfy_topic, msg)
+    LOGGER.info('[%s] Sending message with title "%s" to ntfy topic "%s" '
+                'and body:\n"%s"', tno, label, ntfy_topic, msg)
     requests.post(f'https://ntfy.sh/{ntfy_topic}',
                   headers={
                       'Title': label.encode(encoding='utf-8'),
@@ -74,20 +74,20 @@ def parse_args():
 
 def is_cached(tno, date):
     """ Check if event is already encountered (cached) """
-    LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
+    LOGGER.info("[%s] Trying to use '%s' as state file", tno, STATE_FILE)
     updates = {}
     if os.path.isfile(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
             updates = json.load(state_file)
-        LOGGER.info("Update data loaded: %s", updates)
+        LOGGER.info("[%s] Update data loaded: %s", tno, updates)
     else:
-        LOGGER.info("No state file found")
+        LOGGER.info("[%s] No state file found")
     if updates.get(tno) == date:
-        LOGGER.info("Already recorded event for '%s' at '%s', skipping",
+        LOGGER.info("[%s] Already recorded event at '%s', skipping",
                     tno, date)
         return True
     updates[tno] = date
-    LOGGER.info("Saving update to state file: %s", updates)
+    LOGGER.info("[%s] Saving update to state file: %s", tno, updates)
     with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
         json.dump(updates, state_file)
     return False
@@ -95,22 +95,23 @@ def is_cached(tno, date):
 
 def get_preonex_status(data):
     """ Get status of package before delivery to Onex warehouse """
-    LOGGER.info("Extracting pre-Onex shipping status")
+    tno = data['track']['tracking_number']
+    LOGGER.info("[%s] Extracting pre-Onex shipping status", tno)
     track_data = data['track']
     if not track_data:
         msg_template = "No data collected by Onex"
-        LOGGER.info(msg_template)
+        LOGGER.info("[%s] %s", tno, msg_template)
         return msg_template, {'date': ''}
     checkpoints = track_data['checkpoints']
     if not checkpoints:
-        LOGGER.info("No checkpoints reported (yet)")
+        LOGGER.info("[%s] No checkpoints reported (yet)", tno)
         msg_template = ("{courier} пока не предоставил(а) информацию "
                         "о посылке {label}")
         return msg_template, {'courier': data['track']['courier']['name'],
                               'date': data['track']['last_check']}
     last = max(checkpoints,
                key=lambda e: datetime.datetime.fromisoformat(e['time']))
-    LOGGER.info("Latest pre-Onex checkpoint is %s", last)
+    LOGGER.info("[%s] Latest pre-Onex checkpoint is %s", tno, last)
     msg_template = "{label}: {status} ({place})"
     return msg_template, {'place': last['location_translated'],
                           'status': last['status_name'].lower(),
@@ -125,10 +126,11 @@ def get_at_wh_status(data):
 
 def get_parcel_status(data):
     """ Get "sub"-status from JSON data """
+    tno = data['track']['tracking_number']
     parcel_id = data['import']['parcelid']
-    LOGGER.info("Parcel ID: %s", parcel_id)
+    LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
     trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
-    LOGGER.info("Tracking info: %s", trk_info)
+    LOGGER.info("[%s] Tracking info: %s", tno, trk_info)
     return trk_info['data']
 
 
@@ -172,7 +174,7 @@ def main():
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
     for (tno, label) in track_nos:
-        LOGGER.info("Processing %s (label '%s')", tno, label)
+        LOGGER.info("[%s] Start processing (label '%s')", tno, label)
         basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']
         if not basic_info['import']:
             msg_template, latest_entry = get_preonex_status(basic_info)
@@ -185,16 +187,16 @@ def main():
             msg_template, latest_entry = PROCESSOR_DICT[
                                             basic_info['import']['orderstatus']
                                             ](basic_info)
-        LOGGER.info("Latest entry found: %s", latest_entry)
+        LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
         if not args.no_cache and is_cached(tno, latest_entry['date']):
             continue
         latest_entry['label'] = label
         latest_entry['no'] = tno
         msg_template += "\n({date}, № заказа {no})"
         msg = msg_template.format(**latest_entry)
-        LOGGER.info('Message prepared:\n "%s"', msg)
+        LOGGER.info('[%s] Message prepared:\n "%s"', tno, msg)
         if not args.no_notification:
-            notify(args.ntfy_topic, latest_entry['label'], msg)
+            notify(args.ntfy_topic, latest_entry['label'], msg, tno)
 
 
 if __name__ == '__main__':
