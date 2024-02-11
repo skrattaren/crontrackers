@@ -5,13 +5,14 @@ Track Onex shipping progress and notify about it using `ntf.sh`
 """
 
 import argparse
+import asyncio
 import datetime
 import json
 import logging
 import os
 import sys
 
-import requests
+import aiohttp
 
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
@@ -38,18 +39,21 @@ def notify(ntfy_topic, label, msg, tno):
     """ Send message to `ntfy.sh` topic """
     LOGGER.info('[%s] Sending message with title "%s" to ntfy topic "%s" '
                 'and body:\n"%s"', tno, label, ntfy_topic, msg)
-    requests.post(f'https://ntfy.sh/{ntfy_topic}',
-                  headers={
-                      'Title': label.encode(encoding='utf-8'),
-                      'Tag': 'package'
-                  },
-                  data=msg.encode(encoding='utf-8'),
-                  timeout=3)
+    aiohttp.post(f'https://ntfy.sh/{ntfy_topic}',
+                 headers={
+                     'Title': label.encode(encoding='utf-8'),
+                     'Tag': 'package'
+                 },
+                 data=msg.encode(encoding='utf-8'),
+                 timeout=3)
 
 
-def _request(url, form_data):
-    response = requests.post(url, form_data, headers=ONEX_HEADERS, timeout=666)
-    return response.json()
+async def _request(url, form_data):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, data=form_data, headers=ONEX_HEADERS,
+                                timeout=666) as response:
+            body = await response.read()
+            return json.loads(body)
 
 
 def parse_args():
@@ -124,12 +128,12 @@ def get_at_wh_status(data):
     return msg_template, {'date': data['import']['inusadate']}
 
 
-def get_parcel_status(data):
+async def get_parcel_status(data):
     """ Get "sub"-status from JSON data """
     tno = data['track']['tracking_number']
     parcel_id = data['import']['parcelid']
     LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
-    trk_info = _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
+    trk_info = await _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
     LOGGER.info("[%s] Tracking info: %s", tno, trk_info)
     return trk_info['data']
 
@@ -168,36 +172,41 @@ PROCESSOR_DICT = {'in my way': get_shipping_status,
                   'in Armenia': get_in_am_status}
 
 
-def main():
+async def process_package(tno, label, args):
+    """ Now let's process that stuff async-ly """
+    LOGGER.info("[%s] Start processing (label '%s')", tno, label)
+    basic_info = (await _request(ONEX_INFO_URL, {'tcode': tno}))['data']
+    if not basic_info['import']:
+        msg_template, latest_entry = get_preonex_status(basic_info)
+    elif basic_info['import'].get('orderstatus') is None:
+        msg_template, latest_entry = (
+            "Посылка «{label}» получена складом ONEX",
+            {'date': basic_info['import']['wo_scanneddate']}
+        )
+    else:
+        msg_template, latest_entry = PROCESSOR_DICT[
+                                        basic_info['import']['orderstatus']
+                                        ](basic_info)
+    LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
+    if not args.no_cache and is_cached(tno, latest_entry['date']):
+        return
+    latest_entry['label'] = label
+    latest_entry['no'] = tno
+    msg_template += "\n({date}, № заказа {no})"
+    msg = msg_template.format(**latest_entry)
+    LOGGER.info('[%s] Message prepared:\n "%s"', tno, msg)
+    if not args.no_notification:
+        notify(args.ntfy_topic, latest_entry['label'], msg, tno)
+
+
+async def main():
     """ Main control flow handler """
     args = parse_args()
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
-    for (tno, label) in track_nos:
-        LOGGER.info("[%s] Start processing (label '%s')", tno, label)
-        basic_info = _request(ONEX_INFO_URL, {'tcode': tno})['data']
-        if not basic_info['import']:
-            msg_template, latest_entry = get_preonex_status(basic_info)
-        elif basic_info['import'].get('orderstatus') is None:
-            msg_template, latest_entry = (
-                "Посылка «{label}» получена складом ONEX",
-                {'date': basic_info['import']['wo_scanneddate']}
-            )
-        else:
-            msg_template, latest_entry = PROCESSOR_DICT[
-                                            basic_info['import']['orderstatus']
-                                            ](basic_info)
-        LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
-        if not args.no_cache and is_cached(tno, latest_entry['date']):
-            continue
-        latest_entry['label'] = label
-        latest_entry['no'] = tno
-        msg_template += "\n({date}, № заказа {no})"
-        msg = msg_template.format(**latest_entry)
-        LOGGER.info('[%s] Message prepared:\n "%s"', tno, msg)
-        if not args.no_notification:
-            notify(args.ntfy_topic, latest_entry['label'], msg, tno)
+    await asyncio.gather(*[process_package(tno, label, args)
+                           for (tno, label) in track_nos])
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
