@@ -48,8 +48,8 @@ async def notify(ntfy_topic, label, msg, tno):
 
 async def _request(url, form_data):
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=form_data, headers=ONEX_HEADERS,
-                                timeout=666) as response:
+        async with session.post(url, data=form_data,
+                                headers=ONEX_HEADERS) as response:
             body = await response.read()
             return json.loads(body)
 
