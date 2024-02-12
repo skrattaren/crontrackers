@@ -120,7 +120,7 @@ def get_preonex_status(data):
                           'date': last['time']}
 
 
-def get_at_wh_status(data):
+async def get_at_wh_status(data):
     """ Get status of package at the warehouse """
     msg_template = "Посылка «{label}» доставлена на склад Onex"
     return msg_template, {'date': data['import']['inusadate']}
@@ -136,10 +136,10 @@ async def get_parcel_status(data):
     return trk_info['data']
 
 
-def get_shipping_status(data):
+async def get_shipping_status(data):
     """ Get progress of shipping by Onex itself """
     msg_template = "Посылка «{label}» {dir} {hub}"
-    trk_info = get_parcel_status(data)
+    trk_info = await get_parcel_status(data)
     last = {'hub': 'склад Onex', 'type': 'out',
             'date': data['import']['inmywaydate']}
     if trk_info:
@@ -149,14 +149,14 @@ def get_shipping_status(data):
     return msg_template, last
 
 
-def get_in_am_status(data):
+async def get_in_am_status(data):
     """ Package is in Armenia """
     msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
     return msg_template, {'status': 'in Armenia',
                           'date': data['import']['inarmeniadate']}
 
 
-def get_received_status(data):
+async def get_received_status(data):
     """ Package received """
     msg_template = "Посылка «{label}» доставлена и получена"
     return msg_template, {'status': 'received',
@@ -182,9 +182,9 @@ async def process_package(tno, label, args):
             {'date': basic_info['import']['wo_scanneddate']}
         )
     else:
-        msg_template, latest_entry = PROCESSOR_DICT[
+        msg_template, latest_entry = await (PROCESSOR_DICT[
                                         basic_info['import']['orderstatus']
-                                        ](basic_info)
+                                        ](basic_info))
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     if not args.no_cache and is_cached(tno, latest_entry['date']):
         return
