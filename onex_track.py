@@ -35,17 +35,15 @@ DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
 
-def notify(ntfy_topic, label, msg, tno):
+async def notify(ntfy_topic, label, msg, tno):
     """ Send message to `ntfy.sh` topic """
     LOGGER.info('[%s] Sending message with title "%s" to ntfy topic "%s" '
                 'and body:\n"%s"', tno, label, ntfy_topic, msg)
-    aiohttp.post(f'https://ntfy.sh/{ntfy_topic}',
-                 headers={
-                     'Title': label.encode(encoding='utf-8'),
-                     'Tag': 'package'
-                 },
-                 data=msg.encode(encoding='utf-8'),
-                 timeout=3)
+    async with aiohttp.ClientSession() as session:
+        await session.post(f'https://ntfy.sh/{ntfy_topic}',
+                           headers={'Title': label,
+                                    'Tag': 'package'},
+                           data=msg)
 
 
 async def _request(url, form_data):
@@ -196,7 +194,7 @@ async def process_package(tno, label, args):
     msg = msg_template.format(**latest_entry)
     LOGGER.info('[%s] Message prepared:\n "%s"', tno, msg)
     if not args.no_notification:
-        notify(args.ntfy_topic, latest_entry['label'], msg, tno)
+        await notify(args.ntfy_topic, latest_entry['label'], msg, tno)
 
 
 async def main():
