@@ -10,6 +10,7 @@ import datetime
 import json
 import logging
 import os
+import pprint
 import sys
 
 import aiohttp
@@ -35,10 +36,10 @@ DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
 
-async def notify(ntfy_topic, label, msg, tno):
+async def notify(ntfy_topic, label, msg):
     """ Send message to `ntfy.sh` topic """
-    LOGGER.info('[%s] Sending message with title "%s" to ntfy topic "%s" '
-                'and body:\n"%s"', tno, label, ntfy_topic, msg)
+    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" '
+                'and body:\n"%s"', label, ntfy_topic, msg)
     async with aiohttp.ClientSession() as session:
         await session.post(f'https://ntfy.sh/{ntfy_topic}',
                            headers={'Title': label,
@@ -74,25 +75,31 @@ def parse_args():
     return args
 
 
-def is_cached(tno, date):
-    """ Check if event is already encountered (cached) """
-    LOGGER.info("[%s] Trying to use '%s' as state file", tno, STATE_FILE)
-    updates = {}
+def load_cache():
+    """ Load cache info from STATE_FILE """
+    LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
     if os.path.isfile(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
-            updates = json.load(state_file)
-        LOGGER.info("[%s] Update data loaded: %s", tno, updates)
+            cache_data = json.load(state_file)
+        LOGGER.info("Update data loaded:\n%s", pprint.pformat(cache_data))
     else:
-        LOGGER.info("[%s] No state file found")
-    if updates.get(tno) == date:
-        LOGGER.info("[%s] Already recorded event at '%s', skipping",
-                    tno, date)
-        return True
-    updates[tno] = date
-    LOGGER.info("[%s] Saving update to state file: %s", tno, updates)
+        LOGGER.info("No state file found")
+
+    def cache_wrapper(entry):
+        if entry['date'] == cache_data[entry['no']]:
+            LOGGER.info("Already recorded event for %s at '%s', skipping",
+                        entry['no'], entry['date'])
+            return True
+        cache_data['no'] = entry['date']
+        return False
+    return cache_data, cache_wrapper
+
+
+def save_cache(cache_data):
+    """ Save cache data to STATE_FILE """
+    LOGGER.info("Saving update to state file:\n%s", pprint.pformat(cache_data))
     with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
-        json.dump(updates, state_file)
-    return False
+        json.dump(cache_data, state_file)
 
 
 def get_preonex_status(data):
@@ -170,7 +177,7 @@ PROCESSOR_DICT = {'in my way': get_shipping_status,
                   'in Armenia': get_in_am_status}
 
 
-async def process_package(tno, label, args):
+async def process_package(tno, label):
     """ Now let's process that stuff async-ly """
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
     basic_info = (await _request(ONEX_INFO_URL, {'tcode': tno}))['data']
@@ -186,15 +193,10 @@ async def process_package(tno, label, args):
                                         basic_info['import']['orderstatus']
                                         ](basic_info))
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
-    if not args.no_cache and is_cached(tno, latest_entry['date']):
-        return
     latest_entry['label'] = label
     latest_entry['no'] = tno
-    msg_template += "\n({date}, № заказа {no})"
-    msg = msg_template.format(**latest_entry)
-    LOGGER.info('[%s] Message prepared:\n "%s"', tno, msg)
-    if not args.no_notification:
-        await notify(args.ntfy_topic, latest_entry['label'], msg, tno)
+    latest_entry['msg_template'] = msg_template + "\n({date}, № заказа {no})"
+    return latest_entry
 
 
 async def main():
@@ -202,8 +204,24 @@ async def main():
     args = parse_args()
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
-    await asyncio.gather(*[process_package(tno, label, args)
-                           for (tno, label) in track_nos])
+    status_info = await asyncio.gather(*[process_package(tno, label)
+                                         for (tno, label) in track_nos])
+    if not args.no_cache:
+        cache_data, is_cached = load_cache()
+        status_info = [i for i in status_info if not is_cached(i)]
+        save_cache(cache_data)
+    if not status_info:
+        return
+    LOGGER.info("Events to process:\n%s", pprint.pformat(status_info))
+    messages = []
+    for entry in status_info:
+        msg = entry['msg_template'].format(**entry)
+        LOGGER.info('Message prepared:\n "%s"', msg)
+        messages.append((entry['label'], msg))
+    if not args.no_notification:
+        async with asyncio.TaskGroup() as ntfy_tasks:
+            for (label, msg) in messages:
+                ntfy_tasks.create_task(notify(args.ntfy_topic, label, msg))
 
 
 if __name__ == '__main__':
