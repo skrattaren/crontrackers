@@ -85,20 +85,21 @@ def load_cache():
         LOGGER.info("No state file found")
 
     def cache_wrapper(entry):
-        if entry['date'] == cache_data[entry['no']]:
+        if entry['date'] == cache_data.get(entry['no']):
             LOGGER.info("Already recorded event for %s at '%s', skipping",
                         entry['no'], entry['date'])
             return True
-        cache_data['no'] = entry['date']
+        cache_data[entry['no']] = entry['date']
         return False
     return cache_data, cache_wrapper
 
 
-def save_cache(cache_data):
+def save_cache(cache_data, updates):
     """ Save cache data to STATE_FILE """
+    cache_data.update((i['no'], i['date']) for i in updates)
     LOGGER.info("Saving update to state file:\n%s", pprint.pformat(cache_data))
     with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
-        json.dump(cache_data, state_file)
+        json.dump(cache_data, state_file, indent=2, sort_keys=True)
 
 
 def get_preonex_status(data):
@@ -208,7 +209,8 @@ async def main():
     if not args.no_cache:
         cache_data, is_cached = load_cache()
         status_info = [i for i in status_info if not is_cached(i)]
-        save_cache(cache_data)
+        if status_info:
+            save_cache(cache_data, status_info)
     if not status_info:
         return
     LOGGER.info("Events to process:\n%s", pprint.pformat(status_info))
