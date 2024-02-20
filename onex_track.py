@@ -202,6 +202,14 @@ async def process_package(tno, label):
 async def main():
     """ Main control flow handler """
     args = parse_args()
+    session = aiohttp.ClientSession()
+    try:
+        await session.get(ONEX_BASE_URL)
+    except aiohttp.ClientConnectionError as conn_err:
+        await session.close()
+        if args.verbose:
+            raise conn_err
+        sys.exit(2)
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
     status_info = await asyncio.gather(*[process_package(tno, label)
@@ -212,6 +220,7 @@ async def main():
         if status_info:
             save_cache(cache_data, status_info)
     if not status_info:
+        await session.close()
         return
     LOGGER.info("Events to process:\n%s", pprint.pformat(status_info))
     messages = []
@@ -220,12 +229,11 @@ async def main():
         LOGGER.info('Message prepared:\n "%s"', msg)
         messages.append((entry['label'], msg))
     if not args.no_notification:
-        session = aiohttp.ClientSession()
         async with asyncio.TaskGroup() as ntfy_tasks:
             for (label, msg) in messages:
                 ntfy_tasks.create_task(notify(args.ntfy_topic, label, msg,
                                               session))
-        await session.close()
+    await session.close()
 
 
 if __name__ == '__main__':
