@@ -33,8 +33,8 @@ LOGGER.addHandler(logging.StreamHandler())
 
 
 def notify(url):
-    r = requests.get(url, timeout=13)
-    doc = html.fromstring(r.text)
+    req = requests.get(url, timeout=13)
+    doc = html.fromstring(req.text)
     title = doc.find('head//meta[@name="title"]').attrib['content']
     requests.post(f'https://ntfy.sh/{NTFY_TOPIC}',
                   headers={
@@ -90,8 +90,13 @@ def check_cache(game_id):
 
 def main():
     args = parse_args()
-    r = requests.get(args.game_url, timeout=13)
-    doc = html.fromstring(r.text)
+    try:
+        req = requests.get(args.game_url, timeout=13)
+    except requests.ConnectionError as conn_err:
+        if args.verbose:
+            raise conn_err
+        sys.exit(2)
+    doc = html.fromstring(req.text)
     video_elem = doc.find('body//div[@class="video-records"]/div/iframe')
     if video_elem is None:
         LOGGER.info("No video found on page (yet)")
