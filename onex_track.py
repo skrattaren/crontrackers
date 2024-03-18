@@ -199,17 +199,21 @@ async def process_package(tno, label):
     return latest_entry
 
 
-async def main():
-    """ Main control flow handler """
-    args = parse_args()
-    session = aiohttp.ClientSession()
+async def _check_connection(session, verbose=False):
     try:
         await session.get(ONEX_BASE_URL)
     except aiohttp.ClientConnectionError as conn_err:
         await session.close()
-        if args.verbose:
+        if verbose:
             raise conn_err
         sys.exit(2)
+
+
+async def main():
+    """ Main control flow handler """
+    args = parse_args()
+    session = aiohttp.ClientSession()
+    await _check_connection(session, verbose=args.verbose)
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
     status_info = await asyncio.gather(*[process_package(tno, label)
