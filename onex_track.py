@@ -135,7 +135,7 @@ async def get_at_wh_status(data):
 
 async def get_parcel_status(data):
     """ Get "sub"-status from JSON data """
-    tno = data['track']['tracking_number']
+    tno = data['tno']
     parcel_id = data['import']['parcelid']
     LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
     trk_info = await _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
@@ -181,6 +181,7 @@ async def process_package(tno, label):
     """ Now let's process that stuff async-ly """
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
     basic_info = (await _request(ONEX_INFO_URL, {'tcode': tno}))['data']
+    basic_info['tno'] = tno
     if not basic_info['import']:
         msg_template, latest_entry = get_preonex_status(basic_info)
     elif basic_info['import'].get('orderstatus') is None:
