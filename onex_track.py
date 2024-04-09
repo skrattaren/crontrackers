@@ -79,8 +79,10 @@ def load_cache():
     LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
     if os.path.isfile(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
-            cache_data = json.load(state_file)
-        LOGGER.info("Update data loaded:\n%s", pprint.pformat(cache_data))
+            cache_data = dict(sorted(json.load(state_file).items(),
+                                     key=lambda item: item[1]))
+        LOGGER.info("Update data loaded:\n%s",
+                    pprint.pformat(cache_data, sort_dicts=False))
     else:
         LOGGER.info("No state file found")
 
@@ -97,9 +99,10 @@ def load_cache():
 def save_cache(cache_data, updates):
     """ Save cache data to STATE_FILE """
     cache_data.update((i['no'], i['date']) for i in updates)
-    LOGGER.info("Saving update to state file:\n%s", pprint.pformat(cache_data))
+    LOGGER.info("Saving update to state file:\n%s",
+                pprint.pformat(cache_data, sort_dicts=False))
     with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
-        json.dump(cache_data, state_file, indent=2, sort_keys=True)
+        json.dump(cache_data, state_file, indent=2)
 
 
 def get_preonex_status(data):
