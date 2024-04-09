@@ -79,8 +79,7 @@ def load_cache():
     LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
     if os.path.isfile(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
-            cache_data = dict(sorted(json.load(state_file).items(),
-                                     key=lambda item: item[1]))
+            cache_data = json.load(state_file)
         LOGGER.info("Update data loaded:\n%s",
                     pprint.pformat(cache_data, sort_dicts=False))
     else:
@@ -96,9 +95,9 @@ def load_cache():
     return cache_data, cache_wrapper
 
 
-def save_cache(cache_data, updates):
+def save_cache(cache_data):
     """ Save cache data to STATE_FILE """
-    cache_data.update((i['no'], i['date']) for i in updates)
+    cache_data = dict(sorted(cache_data.items(), key=lambda item: item[1]))
     LOGGER.info("Saving update to state file:\n%s",
                 pprint.pformat(cache_data, sort_dicts=False))
     with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
@@ -228,7 +227,7 @@ async def main():
         cache_data, is_cached = load_cache()
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
-            save_cache(cache_data, status_info)
+            save_cache(cache_data)
     if not status_info:
         await session.close()
         return
