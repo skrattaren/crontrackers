@@ -140,8 +140,10 @@ async def get_parcel_status(data):
     """ Get "sub"-status from JSON data """
     tno = data['tno']
     parcel_id = data['import']['parcelid']
+    id_box = data['import']['idbox']
     LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
-    trk_info = await _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id})
+    trk_info = await _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id,
+                                                  'idbox': id_box})
     LOGGER.info("[%s] Tracking info: %s", tno, trk_info)
     return trk_info['data']
 
