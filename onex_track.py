@@ -84,6 +84,7 @@ def load_cache():
                     pprint.pformat(cache_data, sort_dicts=False))
     else:
         LOGGER.info("No state file found")
+        cache_data = {}
 
     def cache_wrapper(entry):
         if entry['date'] == cache_data.get(entry['no']):
