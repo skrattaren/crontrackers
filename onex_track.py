@@ -107,7 +107,7 @@ def save_cache(cache_data):
 
 def get_preonex_status(data):
     """ Get status of package before delivery to Onex warehouse """
-    tno = data['track']['tracking_number']
+    tno = data['tno']
     LOGGER.info("[%s] Extracting pre-Onex shipping status", tno)
     track_data = data['track']
     if not track_data:
