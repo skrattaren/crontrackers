@@ -215,6 +215,17 @@ async def _check_connection(session, verbose=False):
         sys.exit(2)
 
 
+def split_errors(result_list):
+    """ Split all results into real data and errors """
+    status_info, errors = [], []
+    for i in result_list:
+        if isinstance(i, Exception):
+            errors.append(i)
+        else:
+            status_info.append(i)
+    return status_info, errors
+
+
 async def main():
     """ Main control flow handler """
     args = parse_args()
@@ -222,14 +233,19 @@ async def main():
     await _check_connection(session, verbose=args.verbose)
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in args.track]
-    status_info = await asyncio.gather(*[process_package(tno, label)
-                                         for (tno, label) in track_nos])
+    results = await asyncio.gather(*[process_package(tno, label)
+                                     for (tno, label) in track_nos],
+                                   return_exceptions=True)
+    status_info, errors = split_errors(results)
+    if errors:
+        LOGGER.info("Errors found: %s", errors)
     if not args.no_cache:
         cache_data, is_cached = load_cache()
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
             save_cache(cache_data)
     if not status_info:
+        LOGGER.info("No new events found, exiting")
         await session.close()
         return
     LOGGER.info("Events to process:\n%s", pprint.pformat(status_info))
