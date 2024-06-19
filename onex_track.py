@@ -111,9 +111,7 @@ def get_preonex_status(data):
     LOGGER.info("[%s] Extracting pre-Onex shipping status", tno)
     track_data = data['track']
     if not track_data:
-        msg_template = "No data collected by Onex"
-        LOGGER.info("[%s] %s", tno, msg_template)
-        return msg_template, {'date': ''}
+        raise ValueError(f"No data collected for {tno}")
     checkpoints = track_data['checkpoints']
     if not checkpoints:
         LOGGER.info("[%s] No checkpoints reported (yet)", tno)
