@@ -119,8 +119,7 @@ def get_preonex_status(data):
                         "о посылке {label}")
         return msg_template, {'courier': data['track']['courier']['name'],
                               'date': data['track']['last_check']}
-    last = max(checkpoints,
-               key=lambda e: datetime.datetime.fromisoformat(e['time']))
+    last = checkpoints[-1]
     LOGGER.info("[%s] Latest pre-Onex checkpoint is %s", tno, last)
     msg_template = "{label}: {status} ({place})"
     return msg_template, {'place': last['location_translated'],
@@ -153,8 +152,7 @@ async def get_shipping_status(data):
     last = {'hub': 'склад Onex', 'type': 'out',
             'date': data['import']['inmywaydate']}
     if trk_info:
-        last = max(trk_info,
-                   key=lambda e: datetime.datetime.fromisoformat(e['date']))
+        last = trk_info[-1]
     last['dir'] = DIR_DICT[last['type']]
     return msg_template, last
 
