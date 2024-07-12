@@ -6,7 +6,6 @@ Track Onex shipping progress and notify about it using `ntf.sh`
 
 import argparse
 import asyncio
-import datetime
 import json
 import logging
 import os
