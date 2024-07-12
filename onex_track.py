@@ -75,15 +75,24 @@ def parse_args():
 
 def load_cache():
     """ Load cache info from STATE_FILE """
+    cache_data = {}
+    file_is_corrupt = False
     LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
     if os.path.isfile(STATE_FILE):
         with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
-            cache_data = json.load(state_file)
-        LOGGER.info("Update data loaded:\n%s",
-                    pprint.pformat(cache_data, sort_dicts=False))
+            try:
+                cache_data = json.load(state_file)
+            except json.JSONDecodeError:
+                LOGGER.warning("State file is corrupt and will be overwritten")
+                file_is_corrupt = True
+
+        if file_is_corrupt:
+            os.remove(STATE_FILE)
+        else:
+            LOGGER.info("Update data loaded:\n%s",
+                        pprint.pformat(cache_data, sort_dicts=False))
     else:
         LOGGER.info("No state file found")
-        cache_data = {}
 
     def cache_wrapper(entry):
         if entry['date'] == cache_data.get(entry['no']):
