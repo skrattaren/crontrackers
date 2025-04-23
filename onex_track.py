@@ -211,12 +211,17 @@ async def process_package(tno, label):
 
 async def _check_connection(session, verbose=False):
     try:
-        await session.get(ONEX_BASE_URL)
+        response = await session.get(ONEX_BASE_URL)
     except aiohttp.ClientConnectionError as conn_err:
         await session.close()
         if verbose:
             raise conn_err
         sys.exit(2)
+    if response.ok:
+        return
+    LOGGER.info("Test request failed with '%d' error code", response.status)
+    await session.close()
+    sys.exit(2)
 
 
 def split_errors(result_list):
