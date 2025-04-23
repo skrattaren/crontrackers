@@ -30,6 +30,7 @@ ONEX_HEADERS = {'X-Requested-With': 'XMLHttpRequest',
 ONEX_BASE_URL = 'https://onex.am'
 ONEX_INFO_URL = f'{ONEX_BASE_URL}/onextrack/findtrackingcodeimport'
 ONEX_TRACKING_URL = f'{ONEX_BASE_URL}/parcel/hub'
+ONEX_PRETRACKING_URL = f'{ONEX_BASE_URL}/track/history'
 
 DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
@@ -45,7 +46,7 @@ async def notify(ntfy_topic, label, msg, session):
                        data=msg)
 
 
-async def _request(url, form_data):
+async def _post_request(url, form_data):
     async with aiohttp.ClientSession() as session:
         async with session.post(url, data=form_data,
                                 headers=ONEX_HEADERS) as response:
@@ -113,11 +114,14 @@ def save_cache(cache_data):
         json.dump(cache_data, state_file, indent=2)
 
 
-def get_preonex_status(data):
+async def get_preonex_status(data):
     """ Get status of package before delivery to Onex warehouse """
     tno = data['tno']
-    LOGGER.info("[%s] Extracting pre-Onex shipping status", tno)
-    track_data = data['track']
+    LOGGER.info("[%s] Requesting pre-Onex shipping status", tno)
+    async with aiohttp.ClientSession() as session:
+        async with session.post(ONEX_PRETRACKING_URL, params={'track': tno},
+                                headers=ONEX_HEADERS) as response:
+            track_data = json.loads(await response.read()).get('data')
     if not track_data:
         raise ValueError(f"No data collected for {tno}")
     checkpoints = track_data['checkpoints']
@@ -127,7 +131,7 @@ def get_preonex_status(data):
                         "о посылке {label}")
         return msg_template, {'courier': data['track']['courier']['name'],
                               'date': data['track']['last_check']}
-    last = checkpoints[-1]
+    last = checkpoints[0]
     LOGGER.info("[%s] Latest pre-Onex checkpoint is %s", tno, last)
     msg_template = "{label}: {status} ({place})"
     return msg_template, {'place': last['location_translated'],
@@ -147,7 +151,7 @@ async def get_parcel_status(data):
     parcel_id = data['import']['parcelid']
     id_box = data['import']['idbox']
     LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
-    trk_info = await _request(ONEX_TRACKING_URL, {'parcel_id': parcel_id,
+    trk_info = await _post_request(ONEX_TRACKING_URL, {'parcel_id': parcel_id,
                                                   'idbox': id_box})
     LOGGER.info("[%s] Tracking info: %s", tno, trk_info)
     return trk_info['data']
@@ -189,10 +193,10 @@ PROCESSOR_DICT = {'in my way': get_shipping_status,
 async def process_package(tno, label):
     """ Now let's process that stuff async-ly """
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
-    basic_info = (await _request(ONEX_INFO_URL, {'tcode': tno}))['data']
+    basic_info = (await _post_request(ONEX_INFO_URL, {'tcode': tno}))['data']
     basic_info['tno'] = tno
     if not basic_info['import']:
-        msg_template, latest_entry = get_preonex_status(basic_info)
+        msg_template, latest_entry = await get_preonex_status(basic_info)
     elif basic_info['import'].get('orderstatus') is None:
         msg_template, latest_entry = (
             "Посылка «{label}» получена складом ONEX",
