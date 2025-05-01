@@ -1,0 +1,14 @@
+name: Dummy workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Show environment
+        run: env | grep ^GITHUB
+      - name: Show version
+        run: echo "===============> Version from $GITHUB_REF"
+
