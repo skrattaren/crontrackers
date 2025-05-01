@@ -6,14 +6,18 @@ Track Onex shipping progress and notify about it using `ntf.sh`
 
 import argparse
 import asyncio
+import datetime
 import json
 import logging
+import locale
 import os
 import pprint
 import sys
 
 import aiohttp
 
+
+locale.setlocale(locale.LC_ALL, "ru_RU.UTF-8")
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
@@ -209,7 +213,14 @@ async def process_package(tno, label):
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
-    latest_entry['msg_template'] = msg_template + "\n({date}, № заказа {no})"
+    estimateddate = basic_info['import']['estimateddate']
+    latest_entry['estimateddate'] = datetime.datetime.fromisoformat(
+                                        estimateddate).strftime(
+                                        '%a, %d %b').lower()
+    latest_entry['msg_template'] = ("%s\n"
+                                    "(ожидается в {estimateddate}, "
+                                    "обновлено {date}, заказ № {no})"
+                                    "" % msg_template)
     return latest_entry
 
 
