@@ -7,8 +7,8 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     env:
-      TRACKING_NUMBERS: ${{ secrets.TRACKING_NUMBERS }}
-      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
+      NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
