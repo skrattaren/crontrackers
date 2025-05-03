@@ -75,6 +75,7 @@ def parse_args():
                         metavar="TRACKING_NUMBER[:NAME]",
                         help="order number(s) to track, "
                              "with optional name/labels")
+    parser.add_argument('-N', '--split-by-newlines', action='store_true')
     parser.add_argument('-n', '--no-notification', action='store_true')
     parser.add_argument('-c', '--no-cache', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -269,8 +270,12 @@ async def main():
     args = parse_args()
     session = aiohttp.ClientSession()
     await _check_connection(session, verbose=args.verbose)
+    if args.split_by_newlines:
+        track_nos = args.track[0].splitlines()
+    else:
+        track_nos = args.track
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
-                 for tno in args.track]
+                 for tno in track_nos]
     results = await asyncio.gather(*[process_package(tno, label)
                                      for (tno, label) in track_nos],
                                    return_exceptions=True)

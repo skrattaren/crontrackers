@@ -21,4 +21,4 @@ jobs:
           pip install aiohttp
       - name: Test access to Onex
         run: |
-          python3 onex_track.py -T "$NTFY_TOPIC" --track $TRACKING_NUMBERS -vnc
+          python3 onex_track.py -T "$NTFY_TOPIC" --track "$TRACKING_NUMBERS" -vncN
