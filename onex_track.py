@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import datetime
 import json
+import locale
 import logging
 import os
 import pprint
@@ -15,6 +16,8 @@ import sys
 
 import aiohttp
 
+
+locale.setlocale(locale.LC_ALL, "ru_RU.UTF-8")
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
