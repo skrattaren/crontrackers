@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  track:
     runs-on: ubuntu-24.04
     env:
       TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
@@ -19,6 +19,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install aiohttp
-      - name: Test access to Onex
+      - name: Run tracking script
         run: |
           python3 onex_track.py -T "$NTFY_TOPIC" --track "$TRACKING_NUMBERS" -vncN
