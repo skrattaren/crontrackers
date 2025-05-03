@@ -1,4 +1,4 @@
-name: Dummy workflow
+name: Track my parcels
 
 on:
   workflow_dispatch:
