@@ -73,7 +73,7 @@ def parse_args():
     if args.verbose:
         LOGGER.setLevel('INFO')
         LOGGER.info("Entering verbose mode")
-    if not args.ntfy_topic and not args.no_cache:
+    if not args.ntfy_topic and not args.no_notification:
         parser.error("pass `--ntfy-topic` or use `--no-notification`")
     return args
 
