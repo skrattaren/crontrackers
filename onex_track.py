@@ -36,6 +36,9 @@ ONEX_INFO_URL = f'{ONEX_BASE_URL}/onextrack/findtrackingcodeimport'
 ONEX_TRACKING_URL = f'{ONEX_BASE_URL}/parcel/hub'
 ONEX_PRETRACKING_URL = f'{ONEX_BASE_URL}/track/history'
 
+PANTRY_URL_TMPL = ('https://getpantry.cloud/apiv1/'
+                   'pantry/{pantry}/basket/{basket}')
+
 DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
@@ -62,6 +65,10 @@ def parse_args():
     """ Handle CLI args """
     parser = argparse.ArgumentParser()
     parser.add_argument('-T', '--ntfy-topic', help="ntfy.sh topic to post to")
+    parser.add_argument('-p', '--pantry-basket',
+                        metavar="PANTRY_ID/BASKET_NAME",
+                        help="Pantry basket to store JSON cache, "
+                             "see https://getpantry.cloud/")
     parser.add_argument('-t', '--track', nargs='+', required=True,
                         metavar="TRACKING_NUMBER[:NAME]",
                         help="order number(s) to track, "
@@ -75,11 +82,20 @@ def parse_args():
         LOGGER.info("Entering verbose mode")
     if not args.ntfy_topic and not args.no_notification:
         parser.error("pass `--ntfy-topic` or use `--no-notification`")
+    if args.pantry_basket:
+        try:
+            pantry, basket = args.pantry_basket.split('/')
+            args.pantry_basket_url = PANTRY_URL_TMPL.format(pantry=pantry,
+                                                            basket=basket)
+        except ValueError:
+            parser.error("invalid 'PANTRY_ID/BASKET_NAME'")
+    elif not args.no_cache:
+        parser.error("pass `--pantry-basket` or use `--no-cache`")
     return args
 
 
-def load_cache():
-    """ Load cache info from STATE_FILE """
+def load_cache(url):
+    """ Load cache info from Pantry basket """
     cache_data = {}
     file_is_corrupt = False
     LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
@@ -109,8 +125,8 @@ def load_cache():
     return cache_data, cache_wrapper
 
 
-def save_cache(cache_data):
-    """ Save cache data to STATE_FILE """
+def save_cache(url, cache_data):
+    """ Save cache data to Pantry basket """
     cache_data = dict(sorted(cache_data.items(), key=lambda item: item[1]))
     LOGGER.info("Saving update to state file:\n%s",
                 pprint.pformat(cache_data, sort_dicts=False))
@@ -264,10 +280,10 @@ async def main():
     if errors:
         LOGGER.info("Errors found: %s", errors)
     if not args.no_cache:
-        cache_data, is_cached = load_cache()
+        cache_data, is_cached = load_cache(args.pantry_basket_url)
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
-            save_cache(cache_data)
+            save_cache(args.pantry_basket_url, cache_data)
     if not status_info:
         LOGGER.info("No new events found, exiting")
         await session.close()
