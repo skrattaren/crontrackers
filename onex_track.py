@@ -62,7 +62,7 @@ def parse_args():
     """ Handle CLI args """
     parser = argparse.ArgumentParser()
     parser.add_argument('-T', '--ntfy-topic', help="ntfy.sh topic to post to")
-    parser.add_argument('-t', '--track', nargs='+',
+    parser.add_argument('-t', '--track', nargs='+', required=True,
                         metavar="TRACKING_NUMBER[:NAME]",
                         help="order number(s) to track, "
                              "with optional name/labels")
