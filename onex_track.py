@@ -43,6 +43,8 @@ DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
 
+# TODO: get rid of multiple `ClientSession`s
+
 async def notify(ntfy_topic, label, msg, session):
     """ Send message to `ntfy.sh` topic """
     LOGGER.info('Sending message with title "%s" to ntfy topic "%s" '
@@ -94,26 +96,17 @@ def parse_args():
     return args
 
 
-def load_cache(url):
+async def load_cache(url):
     """ Load cache info from Pantry basket """
-    cache_data = {}
-    file_is_corrupt = False
-    LOGGER.info("Trying to use '%s' as state file", STATE_FILE)
-    if os.path.isfile(STATE_FILE):
-        with open(STATE_FILE, 'r', encoding='utf-8') as state_file:
-            try:
-                cache_data = json.load(state_file)
-            except json.JSONDecodeError:
-                LOGGER.warning("State file is corrupt and will be overwritten")
-                file_is_corrupt = True
-
-        if file_is_corrupt:
-            os.remove(STATE_FILE)
-        else:
-            LOGGER.info("Update data loaded:\n%s",
-                        pprint.pformat(cache_data, sort_dicts=False))
-    else:
-        LOGGER.info("No state file found")
+    LOGGER.info("Loading cache data from '%s'", url)
+    # TODO: handle errors
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as r:
+            if not r.ok:
+                sys.exit(3)
+            cache_data = await r.json()
+    LOGGER.info("Update data loaded:\n%s",
+                pprint.pformat(cache_data, sort_dicts=False))
 
     def cache_wrapper(entry):
         if entry['date'] == cache_data.get(entry['no']):
@@ -125,13 +118,18 @@ def load_cache(url):
     return cache_data, cache_wrapper
 
 
-def save_cache(url, cache_data):
+async def save_cache(url, cache_data):
     """ Save cache data to Pantry basket """
     cache_data = dict(sorted(cache_data.items(), key=lambda item: item[1]))
-    LOGGER.info("Saving update to state file:\n%s",
+    LOGGER.info("Saving update to '%s':\n%s",
+                url,
                 pprint.pformat(cache_data, sort_dicts=False))
-    with open(STATE_FILE, 'w', encoding='utf-8') as state_file:
-        json.dump(cache_data, state_file, indent=2)
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url,
+                                headers={'Content-Type': 'application/json'},
+                                data=json.dumps(cache_data)) as r:
+            if not r.ok:
+                sys.exit(3)
 
 
 async def get_preonex_status(data):
@@ -279,11 +277,12 @@ async def main():
     status_info, errors = split_errors(results)
     if errors:
         LOGGER.info("Errors found: %s", errors)
+    # TODO: load cache async-ly
     if not args.no_cache:
-        cache_data, is_cached = load_cache(args.pantry_basket_url)
+        cache_data, is_cached = await load_cache(args.pantry_basket_url)
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
-            save_cache(args.pantry_basket_url, cache_data)
+            await save_cache(args.pantry_basket_url, cache_data)
     if not status_info:
         LOGGER.info("No new events found, exiting")
         await session.close()
