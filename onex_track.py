@@ -8,16 +8,15 @@ import argparse
 import asyncio
 import datetime
 import json
-import locale
 import logging
 import os
 import pprint
 import sys
 
 import aiohttp
+# TODO: make it optional
+import babel.dates
 
-
-locale.setlocale(locale.LC_ALL, "ru_RU.UTF-8")
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
@@ -229,9 +228,10 @@ async def process_package(tno, label):
     latest_entry['label'] = label
     latest_entry['no'] = tno
     estimateddate = basic_info['import']['estimateddate']
-    latest_entry['estimateddate'] = datetime.datetime.fromisoformat(
-                                        estimateddate).strftime(
-                                        '%a, %d %b').lower()
+    estimateddate = datetime.datetime.fromisoformat(estimateddate)
+    # TODO: make locale configurable
+    latest_entry['estimateddate'] = babel.dates.format_date(format='EE, d MMM',
+                                                            locale='ru')
     latest_entry['msg_template'] = ("%s\n"
                                     "(ожидается в {estimateddate}, "
                                     "обновлено {date}, заказ № {no})"
