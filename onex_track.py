@@ -8,16 +8,15 @@ import argparse
 import asyncio
 import datetime
 import json
-import locale
 import logging
 import os
 import pprint
 import sys
 
 import aiohttp
+# TODO: make it optional
+import babel.dates
 
-
-locale.setlocale(locale.LC_ALL, "ru_RU.UTF-8")
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
@@ -75,6 +74,7 @@ def parse_args():
                         metavar="TRACKING_NUMBER[:NAME]",
                         help="order number(s) to track, "
                              "with optional name/labels")
+    parser.add_argument('-N', '--split-by-newlines', action='store_true')
     parser.add_argument('-n', '--no-notification', action='store_true')
     parser.add_argument('-c', '--no-cache', action='store_true')
     parser.add_argument('-v', '--verbose', action='store_true')
@@ -228,9 +228,10 @@ async def process_package(tno, label):
     latest_entry['label'] = label
     latest_entry['no'] = tno
     estimateddate = basic_info['import']['estimateddate']
-    latest_entry['estimateddate'] = datetime.datetime.fromisoformat(
-                                        estimateddate).strftime(
-                                        '%a, %d %b').lower()
+    estimateddate = datetime.datetime.fromisoformat(estimateddate)
+    # TODO: make locale configurable
+    latest_entry['estimateddate'] = babel.dates.format_date(format='EE, d MMM',
+                                                            locale='ru')
     latest_entry['msg_template'] = ("%s\n"
                                     "(ожидается в {estimateddate}, "
                                     "обновлено {date}, заказ № {no})"
@@ -269,8 +270,12 @@ async def main():
     args = parse_args()
     session = aiohttp.ClientSession()
     await _check_connection(session, verbose=args.verbose)
+    if args.split_by_newlines:
+        track_nos = args.track[0].splitlines()
+    else:
+        track_nos = args.track
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
-                 for tno in args.track]
+                 for tno in track_nos]
     results = await asyncio.gather(*[process_package(tno, label)
                                      for (tno, label) in track_nos],
                                    return_exceptions=True)
