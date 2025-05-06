@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install aiohttp
+          pip install aiohttp babel
       - name: Run tracking script
         run: |
           python3 onex_track.py --ntfy-topic "$NTFY_TOPIC" \
