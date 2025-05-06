@@ -9,7 +9,7 @@ jobs:
     env:
       TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
       NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
-      PANTRY_BASKET_ID: ${{ PANTRY_BASKET_ID }}
+      PANTRY_BASKET_ID: ${{ vars.PANTRY_BASKET_ID }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
