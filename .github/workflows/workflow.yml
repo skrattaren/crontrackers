@@ -26,5 +26,4 @@ jobs:
                                 --pantry-basket "$PANTRY_BASKET_ID" \
                                 --track "$TRACKING_NUMBERS" \
                                 --split-by-newlines \
-                                --no-notification \
                                 --verbose
