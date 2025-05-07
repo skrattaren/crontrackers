@@ -2,7 +2,8 @@ name: Track my parcels
 
 on:
   workflow_dispatch:
-
+  schedule:
+    - cron: '23 */3 * * *'
 jobs:
   track:
     runs-on: ubuntu-24.04
