@@ -20,10 +20,6 @@ import babel.dates
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
-_STATE_DIR = os.path.join(os.getenv('HOME', '.'), '.local', 'state')
-_STATE_DIR = os.getenv('XDG_STATE_HOME', _STATE_DIR)
-STATE_FILE = os.path.join(_STATE_DIR, f'{SCRIPT_NAME}.json')
-
 LOGGER = logging.Logger(SCRIPT_NAME)
 LOGGER.setLevel('WARN')
 LOGGER.addHandler(logging.StreamHandler())
@@ -215,6 +211,7 @@ async def process_package(tno, label):
     basic_info['tno'] = tno
     if not basic_info['import']:
         msg_template, latest_entry = await get_preonex_status(basic_info)
+        hasestimateddate = ""
     elif basic_info['import'].get('orderstatus') is None:
         msg_template, latest_entry = (
             "Посылка «{label}» получена складом ONEX",
@@ -227,15 +224,16 @@ async def process_package(tno, label):
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
-    estimateddate = basic_info['import']['estimateddate']
-    estimateddate = datetime.datetime.fromisoformat(estimateddate)
-    # TODO: make locale configurable
-    latest_entry['estimateddate'] = babel.dates.format_date(format='EE, d MMM',
-                                                            locale='ru')
-    latest_entry['msg_template'] = ("%s\n"
-                                    "(ожидается в {estimateddate}, "
+    if basic_info['import']:
+        estimateddate = basic_info['import']['estimateddate']
+        latest_entry['estimateddate'] = babel.dates.format_date(
+            datetime.datetime.fromisoformat(estimateddate),
+            format='EE, d MMM', locale='ru')
+        hasestimateddate = f"ожидается в {estimateddate}, "
+    latest_entry['msg_template'] = ("%s\n("
+                                    "%s"
                                     "обновлено {date}, заказ № {no})"
-                                    "" % msg_template)
+                                    "" % (msg_template, hasestimateddate))
     return latest_entry
 
 
