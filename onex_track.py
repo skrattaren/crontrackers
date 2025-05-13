@@ -229,7 +229,7 @@ async def process_package(tno, label):
         latest_entry['estimateddate'] = babel.dates.format_date(
             datetime.datetime.fromisoformat(estimateddate),
             format='EE, d MMM', locale='ru')
-        hasestimateddate = f"ожидается в {estimateddate}, "
+        hasestimateddate = "ожидается в {estimateddate}, "
     latest_entry['msg_template'] = ("%s\n("
                                     "%s"
                                     "обновлено {date}, заказ № {no})"
