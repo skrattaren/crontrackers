@@ -209,9 +209,9 @@ async def process_package(tno, label):
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
     basic_info = (await _post_request(ONEX_INFO_URL, {'tcode': tno}))['data']
     basic_info['tno'] = tno
+    hasestimateddate = ""
     if not basic_info['import']:
         msg_template, latest_entry = await get_preonex_status(basic_info)
-        hasestimateddate = ""
     elif basic_info['import'].get('orderstatus') is None:
         msg_template, latest_entry = (
             "Посылка «{label}» получена складом ONEX",
@@ -225,11 +225,12 @@ async def process_package(tno, label):
     latest_entry['label'] = label
     latest_entry['no'] = tno
     if basic_info['import']:
-        estimateddate = basic_info['import']['estimateddate']
-        latest_entry['estimateddate'] = babel.dates.format_date(
-            datetime.datetime.fromisoformat(estimateddate),
-            format='EE, d MMM', locale='ru')
-        hasestimateddate = "ожидается в {estimateddate}, "
+        estimateddate = basic_info['import'].get('estimateddate')
+        if estimateddate is not None:
+            latest_entry['estimateddate'] = babel.dates.format_date(
+                datetime.datetime.fromisoformat(estimateddate),
+                format='EE, d MMM', locale='ru')
+            hasestimateddate = "ожидается в {estimateddate}, "
     latest_entry['msg_template'] = ("%s\n("
                                     "%s"
                                     "обновлено {date}, заказ № {no})"
