@@ -105,11 +105,14 @@ async def load_cache(url):
                 pprint.pformat(cache_data, sort_dicts=False))
 
     def cache_wrapper(entry):
-        if entry['date'] == cache_data.get(entry['no']):
-            LOGGER.info("Already recorded event for %s at '%s', skipping",
-                        entry['no'], entry['date'])
+        cached = cache_data.get(entry['no'])
+        status_date = [entry['status'], entry['date']]
+        if status_date == cached:
+            LOGGER.info("Already recorded event for %(no)s ('%(status)s') "
+                        "at '%(date)s', skipping",
+                        entry)
             return True
-        cache_data[entry['no']] = entry['date']
+        cache_data[entry['no']] = status_date
         return False
     return cache_data, cache_wrapper
 
@@ -156,7 +159,8 @@ async def get_preonex_status(data):
 async def get_at_wh_status(data):
     """ Get status of package at the warehouse """
     msg_template = "Посылка «{label}» доставлена на склад Onex"
-    return msg_template, {'date': data['import']['inusadate']}
+    return msg_template, {'date': data['import']['inusadate'],
+                          'status': 'at_wh'}
 
 
 async def get_parcel_status(data):
@@ -180,6 +184,7 @@ async def get_shipping_status(data):
     if trk_info:
         last = trk_info[-1]
     last['dir'] = DIR_DICT[last['type']]
+    last['status'] = 'moving'
     return msg_template, last
 
 
@@ -215,8 +220,9 @@ async def process_package(tno, label):
     elif basic_info['import'].get('orderstatus') is None:
         LOGGER.info("[%s] Scanned at warehouse", tno)
         msg_template, latest_entry = (
-            "Посылка «{label}» получена складом ONEX",
-            {'date': basic_info['import']['wo_scanneddate']}
+            "Посылка «{label}» отсканирована ONEX",
+            {'date': basic_info['import']['wo_scanneddate'],
+             'status': 'scanned'}
         )
     else:
         msg_template, latest_entry = await (PROCESSOR_DICT[
