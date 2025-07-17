@@ -213,6 +213,7 @@ async def process_package(tno, label):
     if not basic_info['import']:
         msg_template, latest_entry = await get_preonex_status(basic_info)
     elif basic_info['import'].get('orderstatus') is None:
+        LOGGER.info("[%s] Scanned at warehouse", tno)
         msg_template, latest_entry = (
             "Посылка «{label}» получена складом ONEX",
             {'date': basic_info['import']['wo_scanneddate']}
