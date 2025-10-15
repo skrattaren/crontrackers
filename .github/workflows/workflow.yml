@@ -1,6 +1,7 @@
 name: Track my parcels
 
 on:
+  push:
   workflow_dispatch:
   schedule:
     - cron: '23 */3 * * *'
