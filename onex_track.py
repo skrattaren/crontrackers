@@ -256,7 +256,8 @@ async def _check_connection(session, url, verbose=False):
         sys.exit(2)
     if response.ok:
         return
-    LOGGER.info("Test request failed with '%d' error code", response.status)
+    LOGGER.info("Test request to '%s' failed with '%d' error code",
+                url, response.status)
     await session.close()
     sys.exit(2)
 
