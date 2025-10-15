@@ -31,8 +31,9 @@ ONEX_INFO_URL = f'{ONEX_BASE_URL}/onextrack/findtrackingcodeimport'
 ONEX_TRACKING_URL = f'{ONEX_BASE_URL}/parcel/hub'
 ONEX_PRETRACKING_URL = f'{ONEX_BASE_URL}/track/history'
 
-PANTRY_URL_TMPL = ('https://getpantry.cloud/apiv1/'
-                   'pantry/{pantry}/basket/{basket}')
+PANTRY_BASE_URL = 'https://getpantry.cloud'
+PANTRY_URL_TMPL = (f'{PANTRY_BASE_URL}/apiv1'
+                   '/pantry/{pantry}/basket/{basket}')
 
 DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
@@ -245,9 +246,9 @@ async def process_package(tno, label):
     return latest_entry
 
 
-async def _check_connection(session, verbose=False):
+async def _check_connection(session, url, verbose=False):
     try:
-        response = await session.get(ONEX_BASE_URL)
+        response = await session.get(url)
     except aiohttp.ClientConnectionError as conn_err:
         await session.close()
         if verbose:
@@ -275,7 +276,8 @@ async def main():
     """ Main control flow handler """
     args = parse_args()
     session = aiohttp.ClientSession()
-    await _check_connection(session, verbose=args.verbose)
+    await _check_connection(session, ONEX_BASE_URL, verbose=args.verbose)
+    await _check_connection(session, PANTRY_BASE_URL, verbose=args.verbose)
     if args.split_by_newlines:
         track_nos = args.track[0].splitlines()
     else:
