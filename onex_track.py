@@ -15,7 +15,7 @@ import sys
 
 import aiohttp
 # TODO: make it optional
-import babel.dates
+import babel.dates  # type: ignore [import-untyped]
 
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
