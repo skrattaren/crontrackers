@@ -11,7 +11,7 @@ jobs:
     env:
       TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
       NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
-      PANTRY_BASKET_ID: ${{ vars.PANTRY_BASKET_ID }}
+      JSON_BIN_ID: ${{ vars.JSON_BIN_ID }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.13
@@ -25,7 +25,7 @@ jobs:
       - name: Run tracking script
         run: |
           python3 onex_track.py --ntfy-topic "$NTFY_TOPIC" \
-                                --pantry-basket "$PANTRY_BASKET_ID" \
+                                --json-bin "$JSON_BIN_ID" \
                                 --track "$TRACKING_NUMBERS" \
                                 --split-by-newlines \
                                 --verbose

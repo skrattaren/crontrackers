@@ -31,9 +31,9 @@ ONEX_INFO_URL = f'{ONEX_BASE_URL}/onextrack/findtrackingcodeimport'
 ONEX_TRACKING_URL = f'{ONEX_BASE_URL}/parcel/hub'
 ONEX_PRETRACKING_URL = f'{ONEX_BASE_URL}/track/history'
 
-PANTRY_BASE_URL = 'https://getpantry.cloud'
-PANTRY_URL_TMPL = (f'{PANTRY_BASE_URL}/apiv1'
-                   '/pantry/{pantry}/basket/{basket}')
+JSONBIN_BASE_URL = 'https://api.jsonbin.io'
+JSON_URL_TMPL = (f'{JSONBIN_BASE_URL}/v3'
+                 '/b/{bin_id}')
 
 DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
@@ -63,10 +63,10 @@ def parse_args():
     """ Handle CLI args """
     parser = argparse.ArgumentParser()
     parser.add_argument('-T', '--ntfy-topic', help="ntfy.sh topic to post to")
-    parser.add_argument('-p', '--pantry-basket',
-                        metavar="PANTRY_ID/BASKET_NAME",
-                        help="Pantry basket to store JSON cache, "
-                             "see https://getpantry.cloud/")
+    parser.add_argument('-b', '--json-bin',
+                        metavar="JSONBIN_ID",
+                        help="JSONBin, well, bin to store JSON cache, "
+                             "see https://jsonbin.io/")
     parser.add_argument('-t', '--track', nargs='+', required=True,
                         metavar="TRACKING_NUMBER[:NAME]",
                         help="order number(s) to track, "
@@ -81,20 +81,16 @@ def parse_args():
         LOGGER.info("Entering verbose mode")
     if not args.ntfy_topic and not args.no_notification:
         parser.error("pass `--ntfy-topic` or use `--no-notification`")
-    if args.pantry_basket:
-        try:
-            pantry, basket = args.pantry_basket.split('/')
-            args.pantry_basket_url = PANTRY_URL_TMPL.format(pantry=pantry,
-                                                            basket=basket)
-        except ValueError:
-            parser.error("invalid 'PANTRY_ID/BASKET_NAME'")
+    if args.json_bin:
+        args.write_jsonbin_url = JSON_URL_TMPL.format(bin_id=args.json_bin)
+        args.read_jsonbin_url = f'{args.write_jsonbin_url}/latest?meta=false'
     elif not args.no_cache:
-        parser.error("pass `--pantry-basket` or use `--no-cache`")
+        parser.error("pass `--json-bin` or use `--no-cache`")
     return args
 
 
 async def load_cache(url):
-    """ Load cache info from Pantry basket """
+    """ Load cache info from JSONBin """
     LOGGER.info("Loading cache data from '%s'", url)
     # TODO: handle errors
     async with aiohttp.ClientSession() as session:
@@ -119,15 +115,15 @@ async def load_cache(url):
 
 
 async def save_cache(url, cache_data):
-    """ Save cache data to Pantry basket """
+    """ Save cache data to JSONBin """
     cache_data = dict(sorted(cache_data.items(), key=lambda item: item[1]))
     LOGGER.info("Saving update to '%s':\n%s",
                 url,
                 pprint.pformat(cache_data, sort_dicts=False))
     async with aiohttp.ClientSession() as session:
-        async with session.post(url,
-                                headers={'Content-Type': 'application/json'},
-                                data=json.dumps(cache_data)) as r:
+        async with session.put(url,
+                               headers={'Content-Type': 'application/json'},
+                               data=json.dumps(cache_data)) as r:
             if not r.ok:
                 sys.exit(3)
 
@@ -279,9 +275,10 @@ async def main():
     session = aiohttp.ClientSession()
     await _check_connection(session, ONEX_BASE_URL, verbose=args.verbose)
     if not args.no_cache:
-        await _check_connection(session, PANTRY_BASE_URL, verbose=args.verbose)
+        await _check_connection(session, JSONBIN_BASE_URL,
+                                verbose=args.verbose)
         # TODO: load cache async-ly
-        cache_data, is_cached = await load_cache(args.pantry_basket_url)
+        cache_data, is_cached = await load_cache(args.read_jsonbin_url)
     if args.split_by_newlines:
         track_nos = args.track[0].splitlines()
     else:
@@ -298,7 +295,9 @@ async def main():
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
             # TODO: save cache async-ly
-            await save_cache(args.pantry_basket_url, cache_data)
+            LOGGER.info("Cached data prepared for saving:\n%s",
+                        cache_data)
+            await save_cache(args.write_jsonbin_url, cache_data)
     if not status_info:
         LOGGER.info("No new events found, exiting")
         await session.close()
