@@ -278,7 +278,10 @@ async def main():
     args = parse_args()
     session = aiohttp.ClientSession()
     await _check_connection(session, ONEX_BASE_URL, verbose=args.verbose)
-    await _check_connection(session, PANTRY_BASE_URL, verbose=args.verbose)
+    if not args.no_cache:
+        await _check_connection(session, PANTRY_BASE_URL, verbose=args.verbose)
+        # TODO: load cache async-ly
+        cache_data, is_cached = await load_cache(args.pantry_basket_url)
     if args.split_by_newlines:
         track_nos = args.track[0].splitlines()
     else:
@@ -291,11 +294,10 @@ async def main():
     status_info, errors = split_errors(results)
     if errors:
         LOGGER.info("Errors found: %s", errors)
-    # TODO: load cache async-ly
     if not args.no_cache:
-        cache_data, is_cached = await load_cache(args.pantry_basket_url)
         status_info = [i for i in status_info if not is_cached(i)]
         if status_info:
+            # TODO: save cache async-ly
             await save_cache(args.pantry_basket_url, cache_data)
     if not status_info:
         LOGGER.info("No new events found, exiting")
