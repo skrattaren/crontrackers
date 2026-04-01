@@ -218,7 +218,7 @@ async def process_package(tno, label):
         LOGGER.info("[%s] Scanned at warehouse", tno)
         msg_template, latest_entry = (
             "Посылка «{label}» отсканирована ONEX",
-            {'date': basic_info['import']['wo_scanneddate'],
+            {'date': basic_info['import'].get('wo_scanneddate', "UNKNOWN DATE"),
              'status': 'scanned'}
         )
     else:
