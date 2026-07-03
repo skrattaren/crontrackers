@@ -212,7 +212,7 @@ async def process_package(tno, label):
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
     basic_info = (await _post_request(ONEX_INFO_URL, {'tcode': tno}))['data']
     basic_info['tno'] = tno
-    hasestimateddate = ""
+    est_date_tmpl = ""
     if not basic_info['import']:
         # TODO: make `latest_entry` a dataclass
         msg_template, latest_entry = await get_preonex_status(basic_info)
@@ -230,18 +230,24 @@ async def process_package(tno, label):
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
-    if basic_info['import']:
-        estimateddate = basic_info['import'].get('estimateddate')
-        if estimateddate is not None:
-            latest_entry['estimateddate'] = babel.dates.format_date(
-                datetime.datetime.fromisoformat(estimateddate),
-                format='EE, d MMM', locale='ru')
-            hasestimateddate = "ожидается в {estimateddate}, "
+    if (latest_entry['status'] != 'in Armenia'
+            and (import_data:= basic_info['import'])
+            and import_data.get('estimateddate')):
+        est_date_tmpl = "ожидается в {estimateddate}, "
+        latest_entry['estimateddate'] = fmt_estimated_date(import_data)
     latest_entry['msg_template'] = ("%s\n("
                                     "%s"
                                     "обновлено {date}, заказ № {no})"
-                                    "" % (msg_template, hasestimateddate))
+                                    "" % (msg_template, est_date_tmpl))
     return latest_entry
+
+
+def fmt_estimated_date(import_data: dict) -> str:
+    """ Format estimated date or date range """
+    estimateddate = import_data['estimateddate']
+    return babel.dates.format_date(
+        datetime.datetime.fromisoformat(estimateddate),
+        format='EE, d MMM', locale='ru')
 
 
 async def _check_connection(session, url, verbose=False):
