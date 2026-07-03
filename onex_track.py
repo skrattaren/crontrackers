@@ -199,6 +199,7 @@ async def get_received_status(data):
                           'date': data['import']['receiveddate']}
 
 
+# TODO: Status Enum
 PROCESSOR_DICT = {'in my way': get_shipping_status,
                   '3': get_shipping_status,
                   'in USA': get_at_wh_status,
@@ -213,6 +214,7 @@ async def process_package(tno, label):
     basic_info['tno'] = tno
     hasestimateddate = ""
     if not basic_info['import']:
+        # TODO: make `latest_entry` a dataclass
         msg_template, latest_entry = await get_preonex_status(basic_info)
     elif basic_info['import'].get('orderstatus') is None:
         LOGGER.info("[%s] Scanned at warehouse", tno)
