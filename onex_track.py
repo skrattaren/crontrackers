@@ -233,7 +233,7 @@ async def process_package(tno, label):
     if (latest_entry['status'] != 'in Armenia'
             and (import_data:= basic_info['import'])
             and import_data.get('estimateddate')):
-        est_date_tmpl = "ожидается в {estimateddate}, "
+        est_date_tmpl = "ожидается {estimateddate}, "
         latest_entry['estimateddate'] = fmt_estimated_date(import_data)
     latest_entry['msg_template'] = ("%s\n("
                                     "%s"
@@ -241,13 +241,22 @@ async def process_package(tno, label):
                                     "" % (msg_template, est_date_tmpl))
     return latest_entry
 
+def reformat_date(date_str: str, single: bool = False) -> str:
+    """ Format date nicely """
+    fmt_str = 'EE, d MMM' if single else 'd MMM (EE)'
+    return babel.dates.format_date(
+        datetime.datetime.fromisoformat(date_str),
+        format=fmt_str, locale='ru')
+
 
 def fmt_estimated_date(import_data: dict) -> str:
     """ Format estimated date or date range """
     estimateddate = import_data['estimateddate']
-    return babel.dates.format_date(
-        datetime.datetime.fromisoformat(estimateddate),
-        format='EE, d MMM', locale='ru')
+    estdate_to = import_data.get('estimated_date_to')
+    if not estdate_to:
+        return f"в {reformat_date(estimateddate, single=True)}"
+    return "{} – {}".format(reformat_date(estimateddate),
+                            reformat_date(estdate_to))
 
 
 async def _check_connection(session, url, verbose=False):
