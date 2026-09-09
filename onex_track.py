@@ -14,8 +14,12 @@ import pprint
 import sys
 
 import aiohttp
-# TODO: make it optional
-import babel.dates  # type: ignore [import-untyped]
+
+try:
+    import babel.dates  # type: ignore [import-untyped]
+    _BABEL_FOUND = True
+except ImportError:
+    _BABEL_FOUND = False
 
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
@@ -39,6 +43,25 @@ DIR_DICT = {'in': "прибыла в",
 
 
 # TODO: get rid of multiple `ClientSession`s
+
+
+def _reformat_date_with_babel(date_str: str, single: bool = False) -> str:
+    """ Format date nicely with `babel.dates` """
+    fmt_str = 'EE, d MMM' if single else 'd MMM (EE)'
+    return babel.dates.format_date(
+        datetime.datetime.fromisoformat(date_str),
+        format=fmt_str, locale='ru')
+
+
+def _reformat_date_with_dt(date_str: str, single: bool = False) -> str:
+    """ Format date nicely """
+    fmt_str = '%a, %d %b' if single else '%d %b (%a)'
+    return datetime.datetime.fromisoformat(date_str).strftime(fmt_str)
+
+
+reformat_date = (_reformat_date_with_babel
+                 if _BABEL_FOUND else _reformat_date_with_dt)
+
 
 async def notify(ntfy_topic, label, msg, session):
     """ Send a message to the ` ntfy.sh ` topic """
@@ -240,14 +263,6 @@ async def process_package(tno, label):
                                     "обновлено {date}, заказ № {no})"
                                     "" % (msg_template, est_date_tmpl))
     return latest_entry
-
-
-def reformat_date(date_str: str, single: bool = False) -> str:
-    """ Format date nicely """
-    fmt_str = 'EE, d MMM' if single else 'd MMM (EE)'
-    return babel.dates.format_date(
-        datetime.datetime.fromisoformat(date_str),
-        format=fmt_str, locale='ru')
 
 
 def fmt_estimated_date(import_data: dict) -> str:
