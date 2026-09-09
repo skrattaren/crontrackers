@@ -252,8 +252,8 @@ def reformat_date(date_str: str, single: bool = False) -> str:
 def fmt_estimated_date(import_data: dict) -> str:
     """ Format estimated date or date range """
     estimateddate = import_data['estimateddate']
-    estdate_to = str(import_data.get('estimated_date_to', 'UNKNOWN'))
-    if not estdate_to:
+    estdate_to = import_data.get('estimated_date_to', 'UNKNOWN')
+    if estdate_to is None:
         return f"в {reformat_date(estimateddate, single=True)}"
     return "{} – {}".format(reformat_date(estimateddate),
                             reformat_date(estdate_to))
