@@ -42,9 +42,9 @@ DIR_DICT = {'in': "прибыла в",
 # TODO: get rid of multiple `ClientSession`s
 
 async def notify(ntfy_topic, label, msg, session):
-    """ Send message to `ntfy.sh` topic """
-    LOGGER.info('Sending message with title "%s" to ntfy topic "%s" '
-                'and body:\n"%s"', label, ntfy_topic, msg)
+    """ Send a message to the ` ntfy.sh ` topic """
+    LOGGER.info("Sending a message with title '%s' to ntfy topic '%s' "
+                "and body:\n'%s'", label, ntfy_topic, msg)
     await session.post(f'https://ntfy.sh/{ntfy_topic}',
                        headers={'Title': label,
                                 'Tag': 'package'},
@@ -129,7 +129,7 @@ async def save_cache(url, cache_data):
 
 
 async def get_preonex_status(data):
-    """ Get status of package before delivery to Onex warehouse """
+    """ Get the status of the package before delivery to Onex warehouse """
     tno = data['tno']
     LOGGER.info("[%s] Requesting pre-Onex shipping status", tno)
     async with aiohttp.ClientSession() as session:
@@ -154,7 +154,7 @@ async def get_preonex_status(data):
 
 
 async def get_at_wh_status(data):
-    """ Get status of package at the warehouse """
+    """ Get the status of the package at the warehouse """
     msg_template = "Посылка «{label}» доставлена на склад Onex"
     return msg_template, {'date': data['import']['inusadate'],
                           'status': 'at_wh'}
