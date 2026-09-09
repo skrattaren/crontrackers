@@ -17,7 +17,6 @@ import aiohttp
 # TODO: make it optional
 import babel.dates  # type: ignore [import-untyped]
 
-
 SCRIPT_NAME = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 
 LOGGER = logging.Logger(SCRIPT_NAME)
@@ -111,6 +110,7 @@ async def load_cache(url):
             return True
         cache_data[entry['no']] = status_date
         return False
+
     return cache_data, cache_wrapper
 
 
@@ -225,13 +225,13 @@ async def process_package(tno, label):
         )
     else:
         msg_template, latest_entry = await (PROCESSOR_DICT[
-                                        basic_info['import']['orderstatus']
-                                        ](basic_info))
+                                                basic_info['import']['orderstatus']
+                                            ](basic_info))
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
     if (latest_entry['status'] != 'in Armenia'
-            and (import_data:= basic_info['import'])
+            and (import_data := basic_info['import'])
             and import_data.get('estimateddate')):
         est_date_tmpl = "ожидается {estimateddate}, "
         latest_entry['estimateddate'] = fmt_estimated_date(import_data)
@@ -240,6 +240,7 @@ async def process_package(tno, label):
                                     "обновлено {date}, заказ № {no})"
                                     "" % (msg_template, est_date_tmpl))
     return latest_entry
+
 
 def reformat_date(date_str: str, single: bool = False) -> str:
     """ Format date nicely """
