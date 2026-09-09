@@ -252,7 +252,7 @@ def reformat_date(date_str: str, single: bool = False) -> str:
 def fmt_estimated_date(import_data: dict) -> str:
     """ Format estimated date or date range """
     estimateddate = import_data['estimateddate']
-    estdate_to = import_data.get('estimated_date_to')
+    estdate_to = str(import_data.get('estimated_date_to', 'UNKNOWN'))
     if not estdate_to:
         return f"в {reformat_date(estimateddate, single=True)}"
     return "{} – {}".format(reformat_date(estimateddate),
@@ -296,6 +296,9 @@ async def main():
                                 verbose=args.verbose)
         # TODO: load cache async-ly
         cache_data, is_cached = await load_cache(args.read_jsonbin_url)
+    else:
+        cache_data = {}
+        is_cached = lambda _: False
     if args.split_by_newlines:
         track_nos = args.track[0].splitlines()
     else:
