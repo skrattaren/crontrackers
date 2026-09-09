@@ -42,9 +42,6 @@ DIR_DICT = {'in': "прибыла в",
             'out': "покинула"}
 
 
-# TODO: get rid of multiple `ClientSession`s
-
-
 def _reformat_date_with_babel(date_str: str, single: bool = False) -> str:
     """ Format date nicely with `babel.dates` """
     fmt_str = 'EE, d MMM' if single else 'd MMM (EE)'
@@ -73,12 +70,11 @@ async def notify(ntfy_topic, label, msg, session):
                        data=msg)
 
 
-async def _post_request(url, form_data):
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=form_data,
-                                headers=ONEX_HEADERS) as response:
-            body = await response.read()
-            return json.loads(body)
+async def _post_request(url, form_data, session):
+    async with session.post(url, data=form_data,
+                            headers=ONEX_HEADERS) as response:
+        body = await response.read()
+        return json.loads(body)
 
 
 def parse_args():
@@ -111,15 +107,14 @@ def parse_args():
     return args
 
 
-async def load_cache(url):
+async def load_cache(url, session):
     """ Load cache info from JSONBin """
     LOGGER.info("Loading cache data from '%s'", url)
     # TODO: handle errors
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as r:
-            if not r.ok:
-                sys.exit(3)
-            cache_data = await r.json()
+    async with session.get(url) as r:
+        if not r.ok:
+            sys.exit(3)
+        cache_data = await r.json()
     LOGGER.info("Update data loaded:\n%s",
                 pprint.pformat(cache_data, sort_dicts=False))
 
@@ -137,28 +132,26 @@ async def load_cache(url):
     return cache_data, cache_wrapper
 
 
-async def save_cache(url, cache_data):
+async def save_cache(url, cache_data, session):
     """ Save cache data to JSONBin """
     cache_data = dict(sorted(cache_data.items(), key=lambda item: item[1]))
     LOGGER.info("Saving update to '%s':\n%s",
                 url,
                 pprint.pformat(cache_data, sort_dicts=False))
-    async with aiohttp.ClientSession() as session:
-        async with session.put(url,
-                               headers={'Content-Type': 'application/json'},
-                               data=json.dumps(cache_data)) as r:
-            if not r.ok:
-                sys.exit(3)
+    async with session.put(url,
+                           headers={'Content-Type': 'application/json'},
+                           data=json.dumps(cache_data)) as r:
+        if not r.ok:
+            sys.exit(3)
 
 
-async def get_preonex_status(data):
+async def get_preonex_status(data, session):
     """ Get the status of the package before delivery to Onex warehouse """
     tno = data['tno']
     LOGGER.info("[%s] Requesting pre-Onex shipping status", tno)
-    async with aiohttp.ClientSession() as session:
-        async with session.post(ONEX_PRETRACKING_URL, params={'track': tno},
-                                headers=ONEX_HEADERS) as response:
-            track_data = json.loads(await response.read()).get('data')
+    async with session.post(ONEX_PRETRACKING_URL, params={'track': tno},
+                            headers=ONEX_HEADERS) as response:
+        track_data = json.loads(await response.read()).get('data')
     if not track_data:
         raise ValueError(f"No data collected for {tno}")
     checkpoints = track_data['checkpoints']
@@ -183,22 +176,22 @@ async def get_at_wh_status(data):
                           'status': 'at_wh'}
 
 
-async def get_parcel_status(data):
+async def get_parcel_status(data, session):
     """ Get "sub"-status from JSON data """
     tno = data['tno']
     parcel_id = data['import']['parcelid']
     id_box = data['import']['idbox']
     LOGGER.info("[%s] Parcel ID: %s", tno, parcel_id)
     trk_info = await _post_request(ONEX_TRACKING_URL, {'parcel_id': parcel_id,
-                                                       'idbox': id_box})
+                                                       'idbox': id_box}, session)
     LOGGER.info("[%s] Tracking info: %s", tno, trk_info)
     return trk_info['data']
 
 
-async def get_shipping_status(data):
+async def get_shipping_status(data, session):
     """ Get progress of shipping by Onex itself """
     msg_template = "Посылка «{label}» {dir} {hub}"
-    trk_info = await get_parcel_status(data)
+    trk_info = await get_parcel_status(data, session)
     last = {'hub': 'склад Onex', 'type': 'out',
             'date': data['import']['inmywaydate']}
     if trk_info:
@@ -208,14 +201,14 @@ async def get_shipping_status(data):
     return msg_template, last
 
 
-async def get_in_am_status(data):
+async def get_in_am_status(data, _):
     """ Package is in Armenia """
     msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
     return msg_template, {'status': 'in Armenia',
                           'date': data['import']['inarmeniadate']}
 
 
-async def get_received_status(data):
+async def get_received_status(data, _):
     """ Package received """
     msg_template = "Посылка «{label}» доставлена и получена"
     return msg_template, {'status': 'received',
@@ -230,15 +223,15 @@ PROCESSOR_DICT = {'in my way': get_shipping_status,
                   'in Armenia': get_in_am_status}
 
 
-async def process_package(tno, label):
+async def process_package(tno, label, session):
     """ Now let's process that stuff async-ly """
     LOGGER.info("[%s] Start processing (label '%s')", tno, label)
-    basic_info = (await _post_request(ONEX_INFO_URL, {'tcode': tno}))['data']
+    basic_info = (await _post_request(ONEX_INFO_URL, {'tcode': tno}, session))['data']
     basic_info['tno'] = tno
     est_date_tmpl = ""
     if not basic_info['import']:
         # TODO: make `latest_entry` a dataclass
-        msg_template, latest_entry = await get_preonex_status(basic_info)
+        msg_template, latest_entry = await get_preonex_status(basic_info, session)
     elif basic_info['import'].get('orderstatus') is None:
         LOGGER.info("[%s] Scanned at warehouse", tno)
         msg_template, latest_entry = (
@@ -249,7 +242,7 @@ async def process_package(tno, label):
     else:
         msg_template, latest_entry = await (PROCESSOR_DICT[
                                                 basic_info['import']['orderstatus']
-                                            ](basic_info))
+                                            ](basic_info, session))
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
@@ -310,7 +303,7 @@ async def main():
     if not args.no_cache:
         await _check_connection(session, JSONBIN_BASE_URL,
                                 verbose=args.verbose)
-        cache_task = asyncio.create_task(load_cache(args.read_jsonbin_url))
+        cache_task = asyncio.create_task(load_cache(args.read_jsonbin_url, session))
     else:
         # a dummy task for linting purposes
         cache_task = asyncio.create_task(asyncio.sleep(0))
@@ -320,7 +313,7 @@ async def main():
         track_nos = args.track
     track_nos = [tno.split(':', 1) if ':' in tno else (tno, "*UNKNOWN*")
                  for tno in track_nos]
-    results = await asyncio.gather(*[process_package(tno, label)
+    results = await asyncio.gather(*[process_package(tno, label, session)
                                      for (tno, label) in track_nos],
                                    return_exceptions=True)
     status_info, errors = split_errors(results)
@@ -333,7 +326,7 @@ async def main():
             # TODO: save cache async-ly
             LOGGER.info("Cached data prepared for saving:\n%s",
                         cache_data)
-            await save_cache(args.write_jsonbin_url, cache_data)
+            await save_cache(args.write_jsonbin_url, cache_data, session)
     if not status_info:
         LOGGER.info("No new events found, exiting")
         await session.close()
