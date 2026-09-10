@@ -170,7 +170,7 @@ async def get_preonex_status(data, session):
                           'date': last['time']}
 
 
-async def get_at_wh_status(data):
+async def get_at_wh_status(data, _session):
     """ Get the status of the package at the warehouse """
     msg_template = "Посылка «{label}» доставлена на склад Onex"
     return msg_template, {'date': data['import']['inusadate'],
