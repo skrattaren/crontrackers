@@ -205,14 +205,14 @@ async def get_shipping_status(data, session):
 async def get_in_am_status(data, _):
     """ Package is in Armenia """
     msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
-    return msg_template, {'status': OnexStatus.IN_ARMENIA,
+    return msg_template, {'status': OnexStatus.IN_ARMENIA.value,
                           'date': data['import']['inarmeniadate']}
 
 
 async def get_received_status(data, _):
     """ Package received """
     msg_template = "Посылка «{label}» доставлена и получена"
-    return msg_template, {'status': OnexStatus.RECEIVED,
+    return msg_template, {'status': OnexStatus.RECEIVED.value,
                           'date': data['import']['receiveddate']}
 
 
