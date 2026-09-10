@@ -7,6 +7,7 @@ Track Onex shipping progress and notify about it using `ntf.sh`
 import argparse
 import asyncio
 import datetime
+import enum
 import json
 import logging
 import os
@@ -204,23 +205,30 @@ async def get_shipping_status(data, session):
 async def get_in_am_status(data, _):
     """ Package is in Armenia """
     msg_template = "Посылка «{label}» прибыла в Армению и готовится к доставке"
-    return msg_template, {'status': 'in Armenia',
+    return msg_template, {'status': OnexStatus.IN_ARMENIA,
                           'date': data['import']['inarmeniadate']}
 
 
 async def get_received_status(data, _):
     """ Package received """
     msg_template = "Посылка «{label}» доставлена и получена"
-    return msg_template, {'status': 'received',
+    return msg_template, {'status': OnexStatus.RECEIVED,
                           'date': data['import']['receiveddate']}
 
 
-# TODO: Status Enum
-PROCESSOR_DICT = {'in my way': get_shipping_status,
-                  '3': get_shipping_status,
-                  'in USA': get_at_wh_status,
-                  'received': get_received_status,
-                  'in Armenia': get_in_am_status}
+class OnexStatus(enum.StrEnum):
+    IN_MY_WAY = 'in my way'
+    IN_MY_WAY_3 = '3'
+    IN_USA = 'in USA'
+    RECEIVED = 'received'
+    IN_ARMENIA = 'in Armenia'
+
+
+PROCESSOR_DICT = {OnexStatus.IN_MY_WAY: get_shipping_status,
+                  OnexStatus.IN_MY_WAY_3: get_shipping_status,
+                  OnexStatus.IN_USA: get_at_wh_status,
+                  OnexStatus.RECEIVED: get_received_status,
+                  OnexStatus.IN_ARMENIA: get_in_am_status}
 
 
 async def process_package(tno, label, session):
@@ -246,7 +254,7 @@ async def process_package(tno, label, session):
     LOGGER.info("[%s] Latest entry found: %s", tno, latest_entry)
     latest_entry['label'] = label
     latest_entry['no'] = tno
-    if (latest_entry['status'] != 'in Armenia'
+    if (latest_entry['status'] != OnexStatus.IN_ARMENIA
             and (import_data := basic_info['import'])
             and import_data.get('estimateddate')):
         est_date_tmpl = "ожидается {estimateddate}, "
