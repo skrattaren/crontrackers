@@ -7,15 +7,15 @@ on:
     - cron: '23 */3 * * *'
 jobs:
   track:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
       NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
       JSON_BIN_ID: ${{ vars.JSON_BIN_ID }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python 3.14
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.14'
       - name: Install dependencies
