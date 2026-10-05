@@ -7,7 +7,7 @@ on:
     - cron: '23 */3 * * *'
 jobs:
   track:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       TRACKING_NUMBERS: ${{ vars.TRACKING_NUMBERS }}
       NTFY_TOPIC: ${{ vars.NTFY_TOPIC }}
