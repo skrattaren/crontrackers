@@ -165,8 +165,11 @@ async def get_preonex_status(data, session):
         LOGGER.info("[%s] No checkpoints reported (yet)", tno)
         msg_template = ("{courier} пока не предоставил(а) информацию "
                         "о посылке {label}")
-        return msg_template, {'courier': data['track']['courier']['name'],
-                              'date': data['track']['last_check']}
+        return msg_template, {
+            'status': OnexStatus.NOT_YET_SHIPPED,
+            'courier': track_data['courier']['name'],
+            'date': track_data['last_check']
+        }
     last = checkpoints[0]
     LOGGER.info("[%s] Latest pre-Onex checkpoint is %s", tno, last)
     msg_template = "{label}: {status} ({place})"
@@ -222,6 +225,7 @@ async def get_received_status(data, _):
 
 
 class OnexStatus(enum.StrEnum):
+    NOT_YET_SHIPPED = 'not_shipped'
     IN_MY_WAY = 'in my way'
     IN_MY_WAY_3 = '3'
     IN_USA = 'in USA'
