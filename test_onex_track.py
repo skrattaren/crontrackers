@@ -977,6 +977,68 @@ class TestUtilities(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(args.no_notification)
             self.assertTrue(args.no_cache)
 
+    @patch("onex_track.save_cache", new_callable=AsyncMock)
+    @patch("onex_track.notify", new_callable=AsyncMock)
+    @patch("onex_track.process_package", new_callable=AsyncMock)
+    @patch("onex_track.load_cache", new_callable=AsyncMock)
+    @patch("onex_track._check_connection", new_callable=AsyncMock)
+    @patch("onex_track.aiohttp.ClientSession")
+    async def test_main_saves_cache_after_successful_notification(
+        self, mock_session_cls, mock_conn, mock_load, mock_proc, mock_notify, mock_save
+    ):
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        cache_data = {}
+        mock_load.return_value = (cache_data, lambda entry: False)
+        mock_proc.return_value = {
+            "no": "T1",
+            "label": "Label1",
+            "status": "in transit",
+            "date": "2020-01-01",
+            "msg_template": "{label}: {status}",
+        }
+
+        with patch(
+            "sys.argv",
+            ["onex_track.py", "-t", "T1:Label1", "-T", "test-topic", "-b", "bin123"],
+        ):
+            await onex_track.main()
+
+        mock_notify.assert_awaited_once()
+        mock_save.assert_awaited_once()
+
+    @patch("onex_track.save_cache", new_callable=AsyncMock)
+    @patch("onex_track.notify", new_callable=AsyncMock)
+    @patch("onex_track.process_package", new_callable=AsyncMock)
+    @patch("onex_track.load_cache", new_callable=AsyncMock)
+    @patch("onex_track._check_connection", new_callable=AsyncMock)
+    @patch("onex_track.aiohttp.ClientSession")
+    async def test_main_does_not_save_cache_if_notification_fails(
+        self, mock_session_cls, mock_conn, mock_load, mock_proc, mock_notify, mock_save
+    ):
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        cache_data = {}
+        mock_load.return_value = (cache_data, lambda entry: False)
+        mock_proc.return_value = {
+            "no": "T1",
+            "label": "Label1",
+            "status": "in transit",
+            "date": "2020-01-01",
+            "msg_template": "{label}: {status}",
+        }
+        mock_notify.side_effect = RuntimeError("Notification failed")
+
+        with patch(
+            "sys.argv",
+            ["onex_track.py", "-t", "T1:Label1", "-T", "test-topic", "-b", "bin123"],
+        ):
+            with self.assertRaises(ExceptionGroup):
+                await onex_track.main()
+
+        mock_notify.assert_awaited_once()
+        mock_save.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -330,11 +330,6 @@ async def main():
     if not args.no_cache:
         cache_data, is_cached = await cache_task
         status_info = [i for i in status_info if not is_cached(i)]
-        if status_info:
-            # TODO: save cache async-ly
-            LOGGER.info("Cached data prepared for saving:\n%s",
-                        cache_data)
-            await save_cache(args.write_jsonbin_url, cache_data, session)
     if not status_info:
         LOGGER.info("No new events found, exiting")
         await session.close()
@@ -350,6 +345,10 @@ async def main():
             for (label, msg) in messages:
                 ntfy_tasks.create_task(notify(args.ntfy_topic, label, msg,
                                               session))
+    if not args.no_cache:
+        LOGGER.info("Cached data prepared for saving:\n%s",
+                    cache_data)
+        await save_cache(args.write_jsonbin_url, cache_data, session)
     await session.close()
 
 
