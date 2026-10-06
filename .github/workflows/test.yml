@@ -1,5 +1,4 @@
-name: Track my parcels
-
+name: Test "onex_track"
 on:
   push:
 jobs:
