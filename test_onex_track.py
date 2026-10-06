@@ -703,6 +703,8 @@ class TestPreOnex(unittest.IsolatedAsyncioTestCase):
             msg_template,
             "{courier} пока не предоставил(а) информацию о посылке {label}",
         )
+        self.assertEqual(latest_entry["status"], OnexStatus.NOT_YET_SHIPPED)
+        self.assertEqual(latest_entry["status"], "not_shipped")
         self.assertEqual(latest_entry["courier"], "Почта США")
         self.assertEqual(latest_entry["date"], "2020-02-05 18:00:00")
 
@@ -784,6 +786,80 @@ class TestPreOnex(unittest.IsolatedAsyncioTestCase):
         formatted_msg = entry["msg_template"].format(**entry)
         self.assertIn("Тестовый заказ 📦: посылка выдана для доставки (Wilmington, DE)", formatted_msg)
         self.assertIn(f"заказ № {tno}", formatted_msg)
+
+    async def test_process_package_not_yet_shipped(self):
+        """
+        Test process_package when package is not yet shipped (pre-Onex, no checkpoints).
+        """
+        mock_session = MagicMock()
+        empty_checkpoints_data = copy.deepcopy(self.preonex_data)
+        empty_checkpoints_data["data"]["checkpoints"] = []
+        mock_resp = MagicMock()
+        mock_resp.read = AsyncMock(
+            return_value=json.dumps(empty_checkpoints_data).encode("utf-8")
+        )
+        mock_session.post.return_value = make_async_cm(mock_resp)
+
+        tno = self.basic_info["tno"]
+        label = "Order #789"
+
+        with patch("onex_track._post_request", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = {"data": copy.deepcopy(self.basic_info)}
+
+            entry = await process_package(tno, label, mock_session)
+
+            mock_post.assert_awaited_once_with(
+                ONEX_INFO_URL,
+                {"tcode": tno},
+                mock_session,
+            )
+
+        self.assertEqual(entry["no"], tno)
+        self.assertEqual(entry["label"], label)
+        self.assertEqual(entry["status"], OnexStatus.NOT_YET_SHIPPED)
+        self.assertEqual(entry["status"], "not_shipped")
+        self.assertEqual(entry["courier"], "Почта США")
+        self.assertEqual(entry["date"], "2020-02-05 18:00:00")
+        self.assertNotIn("estimateddate", entry)
+
+        expected_msg_template = (
+            "{courier} пока не предоставил(а) информацию о посылке {label}\n"
+            "(обновлено {date}, заказ № {no})"
+        )
+        self.assertEqual(entry["msg_template"], expected_msg_template)
+
+        formatted_msg = entry["msg_template"].format(**entry)
+        expected_msg = (
+            f"Почта США пока не предоставил(а) информацию о посылке {label}\n"
+            f"(обновлено 2020-02-05 18:00:00, заказ № {tno})"
+        )
+        self.assertEqual(formatted_msg, expected_msg)
+
+    async def test_not_yet_shipped_caching_behavior(self):
+        """Verify caching behavior for 'not yet shipped' status."""
+        mock_session = MagicMock()
+        cache_url = "https://api.jsonbin.io/v3/b/dummy/latest?meta=false"
+
+        initial_cache = {}
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json = AsyncMock(return_value=initial_cache)
+        mock_session.get.return_value = make_async_cm(mock_response)
+
+        cache_data, is_cached = await load_cache(cache_url, mock_session)
+
+        entry = {
+            "no": self.basic_info["tno"],
+            "status": OnexStatus.NOT_YET_SHIPPED,
+            "date": "2020-02-05 18:00:00",
+        }
+
+        # First time seen: not cached, should be added to cache_data
+        self.assertFalse(is_cached(entry))
+        self.assertEqual(cache_data[entry["no"]], [entry["status"], entry["date"]])
+
+        # Second time seen: already cached
+        self.assertTrue(is_cached(entry))
 
     async def test_preonex_caching_behavior(self):
         """Verify caching behavior for pre-Onex status."""
@@ -901,14 +977,25 @@ class TestOtherStatuses(unittest.IsolatedAsyncioTestCase):
         }
         mock_resp = MagicMock()
         mock_resp.read = AsyncMock(
-            return_value=json.dumps({"data": {"checkpoints": []}}).encode("utf-8")
+            return_value=json.dumps({
+                "data": {
+                    "checkpoints": [],
+                    "courier": {"name": "FedEx"},
+                    "last_check": "2020-01-01 10:00:00",
+                }
+            }).encode("utf-8")
         )
         mock_session.post.return_value = make_async_cm(mock_resp)
 
         msg_tmpl, entry = await get_preonex_status(data, mock_session)
         self.assertIn("FedEx", msg_tmpl.format(courier="FedEx", label="pkg"))
+        self.assertEqual(entry["status"], OnexStatus.NOT_YET_SHIPPED)
         self.assertEqual(entry["courier"], "FedEx")
         self.assertEqual(entry["date"], "2020-01-01 10:00:00")
+
+    def test_not_yet_shipped_status_enum(self):
+        self.assertEqual(OnexStatus.NOT_YET_SHIPPED, "not_shipped")
+        self.assertEqual(OnexStatus.NOT_YET_SHIPPED.value, "not_shipped")
 
     async def test_get_preonex_status_with_checkpoints(self):
         mock_session = MagicMock()
@@ -1006,6 +1093,46 @@ class TestUtilities(unittest.IsolatedAsyncioTestCase):
             await onex_track.main()
 
         mock_notify.assert_awaited_once()
+        mock_save.assert_awaited_once()
+
+    @patch("onex_track.save_cache", new_callable=AsyncMock)
+    @patch("onex_track.notify", new_callable=AsyncMock)
+    @patch("onex_track.process_package", new_callable=AsyncMock)
+    @patch("onex_track.load_cache", new_callable=AsyncMock)
+    @patch("onex_track._check_connection", new_callable=AsyncMock)
+    @patch("onex_track.aiohttp.ClientSession")
+    async def test_main_handles_not_yet_shipped_package(
+        self, mock_session_cls, mock_conn, mock_load, mock_proc, mock_notify, mock_save
+    ):
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        cache_data = {}
+        mock_load.return_value = (cache_data, lambda entry: False)
+        mock_proc.return_value = {
+            "no": "T1",
+            "label": "Label1",
+            "status": OnexStatus.NOT_YET_SHIPPED,
+            "courier": "Почта США",
+            "date": "2020-02-05 18:00:00",
+            "msg_template": (
+                "{courier} пока не предоставил(а) информацию о посылке {label}\n"
+                "(обновлено {date}, заказ № {no})"
+            ),
+        }
+
+        with patch(
+            "sys.argv",
+            ["onex_track.py", "-t", "T1:Label1", "-T", "test-topic", "-b", "bin123"],
+        ):
+            await onex_track.main()
+
+        expected_msg = (
+            "Почта США пока не предоставил(а) информацию о посылке Label1\n"
+            "(обновлено 2020-02-05 18:00:00, заказ № T1)"
+        )
+        mock_notify.assert_awaited_once_with(
+            "test-topic", "Label1", expected_msg, mock_session
+        )
         mock_save.assert_awaited_once()
 
     @patch("onex_track.save_cache", new_callable=AsyncMock)
