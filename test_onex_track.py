@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import onex_track
 from onex_track import (
     DIR_DICT,
+    LOGGER,
     ONEX_INFO_URL,
     ONEX_PRETRACKING_URL,
     ONEX_TRACKING_URL,
@@ -1038,6 +1039,84 @@ class TestUtilities(unittest.IsolatedAsyncioTestCase):
 
         mock_notify.assert_awaited_once()
         mock_save.assert_not_called()
+
+    async def test_notify_timeout(self):
+        mock_session = MagicMock()
+        mock_session.post = AsyncMock(side_effect=TimeoutError("Connection timed out"))
+        with self.assertLogs(LOGGER, level="ERROR") as cm:
+            with self.assertRaises(TimeoutError):
+                await notify("my-topic", "Title", "Body message", mock_session)
+        self.assertTrue(any("Timeout" in log for log in cm.output))
+
+    @patch("onex_track.save_cache", new_callable=AsyncMock)
+    @patch("onex_track.notify", new_callable=AsyncMock)
+    @patch("onex_track.process_package", new_callable=AsyncMock)
+    @patch("onex_track.load_cache", new_callable=AsyncMock)
+    @patch("onex_track._check_connection", new_callable=AsyncMock)
+    @patch("onex_track.aiohttp.ClientSession")
+    async def test_main_exits_with_4_on_notification_timeout(
+        self, mock_session_cls, mock_conn, mock_load, mock_proc, mock_notify, mock_save
+    ):
+        mock_session = AsyncMock()
+        mock_session_cls.return_value = mock_session
+        cache_data = {}
+        mock_load.return_value = (cache_data, lambda entry: False)
+        mock_proc.return_value = {
+            "no": "T1",
+            "label": "Label1",
+            "status": "in transit",
+            "date": "2020-01-01",
+            "msg_template": "{label}: {status}",
+        }
+        mock_notify.side_effect = TimeoutError("Request timed out")
+
+        with patch(
+            "sys.argv",
+            ["onex_track.py", "-t", "T1:Label1", "-T", "test-topic", "-b", "bin123"],
+        ):
+            with self.assertLogs(LOGGER, level="ERROR") as cm:
+                with self.assertRaises(SystemExit) as exit_cm:
+                    await onex_track.main()
+            self.assertEqual(exit_cm.exception.code, 4)
+            self.assertTrue(any("Timeout" in log for log in cm.output))
+
+        mock_notify.assert_awaited_once()
+        mock_save.assert_not_called()
+        mock_session.close.assert_awaited_once()
+
+    @patch("onex_track.save_cache", new_callable=AsyncMock)
+    @patch("onex_track.process_package", new_callable=AsyncMock)
+    @patch("onex_track.load_cache", new_callable=AsyncMock)
+    @patch("onex_track._check_connection", new_callable=AsyncMock)
+    @patch("onex_track.aiohttp.ClientSession")
+    async def test_main_exits_with_4_on_real_notify_timeout(
+        self, mock_session_cls, mock_conn, mock_load, mock_proc, mock_save
+    ):
+        mock_session = AsyncMock()
+        mock_session.post.side_effect = TimeoutError("Network timeout")
+        mock_session_cls.return_value = mock_session
+        cache_data = {}
+        mock_load.return_value = (cache_data, lambda entry: False)
+        mock_proc.return_value = {
+            "no": "T1",
+            "label": "Label1",
+            "status": "in transit",
+            "date": "2020-01-01",
+            "msg_template": "{label}: {status}",
+        }
+
+        with patch(
+            "sys.argv",
+            ["onex_track.py", "-t", "T1:Label1", "-T", "test-topic", "-b", "bin123"],
+        ):
+            with self.assertLogs(LOGGER, level="ERROR") as cm:
+                with self.assertRaises(SystemExit) as exit_cm:
+                    await onex_track.main()
+            self.assertEqual(exit_cm.exception.code, 4)
+            self.assertTrue(any("Timeout" in log for log in cm.output))
+
+        mock_save.assert_not_called()
+        mock_session.close.assert_awaited_once()
 
 
 if __name__ == "__main__":

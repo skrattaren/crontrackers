@@ -65,10 +65,15 @@ async def notify(ntfy_topic, label, msg, session):
     """ Send a message to the ` ntfy.sh ` topic """
     LOGGER.info("Sending a message with title '%s' to ntfy topic '%s' "
                 "and body:\n'%s'", label, ntfy_topic, msg)
-    await session.post(f'https://ntfy.sh/{ntfy_topic}',
-                       headers={'Title': label,
-                                'Tag': 'package'},
-                       data=msg)
+    try:
+        await session.post(f'https://ntfy.sh/{ntfy_topic}',
+                           headers={'Title': label,
+                                    'Tag': 'package'},
+                           data=msg)
+    except TimeoutError as err:
+        LOGGER.error("[%s] Timeout sending notification to '%s': %s",
+                     label, ntfy_topic, err)
+        raise
 
 
 async def _post_request(url, form_data, session):
@@ -341,10 +346,18 @@ async def main():
         LOGGER.info('Message prepared:\n "%s"', msg)
         messages.append((entry['label'], msg))
     if not args.no_notification:
-        async with asyncio.TaskGroup() as ntfy_tasks:
-            for (label, msg) in messages:
-                ntfy_tasks.create_task(notify(args.ntfy_topic, label, msg,
-                                              session))
+        try:
+            async with asyncio.TaskGroup() as ntfy_tasks:
+                for (label, msg) in messages:
+                    ntfy_tasks.create_task(notify(args.ntfy_topic, label, msg,
+                                                  session))
+        except* TimeoutError as err:
+            LOGGER.error("Timeout when sending notification: %s", err)
+            for exc in err.exceptions:
+                if str(exc):
+                    LOGGER.error("  %s", exc)
+            await session.close()
+            sys.exit(4)
     if not args.no_cache:
         LOGGER.info("Cached data prepared for saving:\n%s",
                     cache_data)
